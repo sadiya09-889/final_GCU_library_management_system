@@ -25,7 +25,7 @@ export default function NotificationsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Notifications</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Notifications</h1>
         <p className="text-muted-foreground mt-1">{notifications.filter(n => !n.read).length} unread</p>
       </div>
 

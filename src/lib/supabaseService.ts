@@ -69,6 +69,23 @@ export async function fetchOverdueBooks(): Promise<IssuedBook[]> {
     return data ?? [];
 }
 
+export async function checkAndUpdateOverdueBooks(): Promise<void> {
+    const today = new Date().toISOString().split("T")[0];
+    // Fetch all issued books where due_date has passed
+    const { data, error } = await supabase
+        .from("issued_books")
+        .select("id, due_date")
+        .eq("status", "issued")
+        .lt("due_date", today);
+    if (error || !data || data.length === 0) return;
+    // Update each overdue book's status
+    const ids = data.map(d => d.id);
+    await supabase
+        .from("issued_books")
+        .update({ status: "overdue" })
+        .in("id", ids);
+}
+
 export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBook> {
     const { data, error } = await supabase
         .from("issued_books")

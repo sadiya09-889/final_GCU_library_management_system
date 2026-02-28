@@ -48,7 +48,7 @@ export default function OPACPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">OPAC</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">OPAC</h1>
         <p className="text-muted-foreground mt-1">Online Public Access Catalog — Search and discover books</p>
       </div>
 
@@ -68,7 +68,10 @@ export default function OPACPage() {
             <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
               className="pl-3 pr-8 py-2 rounded-lg border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-secondary/50 appearance-none">
               <option value="All">All Categories</option>
-              {categories.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="Computer Science">Computer Science</option>
+              <option value="Mechanical Engineering">Mechanical Engineering</option>
+              <option value="Mathematics">Mathematics</option>
+              <option value="Management">Management</option>
             </select>
           </div>
           <div className="relative">
@@ -97,7 +100,7 @@ export default function OPACPage() {
                   <BookOpen className="h-5 w-5 text-secondary" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-serif font-bold text-foreground">{b.title}</h3>
+                  <h3 className="font-semibold text-foreground">{b.title}</h3>
                   <p className="text-muted-foreground text-sm">{b.author} · {b.year_of_publication}</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-xs">{b.category}</span>
@@ -141,7 +144,7 @@ export default function OPACPage() {
                   <BookOpen className="h-6 w-6 text-secondary" />
                 </div>
                 <div>
-                  <h2 className="font-serif font-bold text-xl text-foreground">{selectedBook.title}</h2>
+                  <h2 className="font-semibold text-xl text-foreground">{selectedBook.title}</h2>
                   <p className="text-muted-foreground text-sm">{selectedBook.author}</p>
                 </div>
               </div>

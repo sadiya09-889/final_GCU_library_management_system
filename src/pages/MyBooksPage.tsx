@@ -9,12 +9,12 @@ export default function MyBooksPage() {
   const [loading, setLoading] = useState(true);
   const MAX_RENEWALS = 2;
 
-  const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
+  const DEMO_STUDENT_ID = "a7d58a28-57dd-485a-aa70-fd883e85bfff";
 
   useEffect(() => {
     fetchIssuedBooks()
       .then(data => {
-        const myBooks = data.filter(i => i.student_name === user.name || i.student_id === user.id);
+        const myBooks = data.filter(i => i.student_id === DEMO_STUDENT_ID);
         setIssuedBooks(myBooks);
       })
       .catch(() => { })
@@ -38,24 +38,30 @@ export default function MyBooksPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">My Books</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">My Books</h1>
         <p className="text-muted-foreground mt-1">Books currently issued to you</p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <BookOpen className="h-5 w-5 text-secondary mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{issuedBooks.filter(b => b.status === "issued").length}</p>
+          <p className="text-2xl font-semibold text-foreground">{issuedBooks.filter(b => b.status === "issued").length}</p>
           <p className="text-muted-foreground text-xs">Currently Issued</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <Clock className="h-5 w-5 text-accent mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{issuedBooks.filter(b => b.status === "issued").length}</p>
+          <p className="text-2xl font-semibold text-foreground">{issuedBooks.filter(b => {
+            if (b.status !== "issued") return false;
+            const due = new Date(b.due_date);
+            const today = new Date();
+            const diff = (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+            return diff > 0 && diff <= 3;
+          }).length}</p>
           <p className="text-muted-foreground text-xs">Upcoming Due</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <AlertTriangle className="h-5 w-5 text-destructive mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{issuedBooks.filter(b => b.status === "overdue").length}</p>
+          <p className="text-2xl font-semibold text-foreground">{issuedBooks.filter(b => b.status === "overdue").length}</p>
           <p className="text-muted-foreground text-xs">Overdue</p>
         </div>
       </div>
@@ -72,7 +78,7 @@ export default function MyBooksPage() {
                     <BookOpen className="h-5 w-5 text-secondary" />
                   </div>
                   <div>
-                    <h3 className="font-serif font-bold text-foreground">{book.book_title}</h3>
+                    <h3 className="font-semibold text-foreground">{book.book_title}</h3>
                     <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
                       <span>Issued: {book.issue_date}</span>
                       <span>Due: {book.due_date}</span>

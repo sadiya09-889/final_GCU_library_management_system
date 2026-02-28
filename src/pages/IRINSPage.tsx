@@ -39,7 +39,7 @@ export default function IRINSPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Award className="h-6 w-6 text-secondary" />
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">IRINS</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">IRINS</h1>
         </div>
         <p className="text-muted-foreground mt-1">Indian Research Information Network System — Faculty Research Profiles</p>
       </div>
@@ -48,22 +48,22 @@ export default function IRINSPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <Users className="h-5 w-5 text-secondary mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{mockProfiles.length}</p>
+          <p className="text-2xl font-semibold text-foreground">{mockProfiles.length}</p>
           <p className="text-muted-foreground text-xs">Researchers</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <FileText className="h-5 w-5 text-accent mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{totalPubs}</p>
+          <p className="text-2xl font-semibold text-foreground">{totalPubs}</p>
           <p className="text-muted-foreground text-xs">Publications</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <BarChart3 className="h-5 w-5 text-secondary mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{totalCitations.toLocaleString()}</p>
+          <p className="text-2xl font-semibold text-foreground">{totalCitations.toLocaleString()}</p>
           <p className="text-muted-foreground text-xs">Total Citations</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <TrendingUp className="h-5 w-5 text-accent mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{Math.max(...mockProfiles.map(p => p.hIndex))}</p>
+          <p className="text-2xl font-semibold text-foreground">{Math.max(...mockProfiles.map(p => p.hIndex))}</p>
           <p className="text-muted-foreground text-xs">Highest h-Index</p>
         </div>
       </div>
@@ -92,22 +92,22 @@ export default function IRINSPage() {
                   {p.name.split(" ").slice(-2).map(n => n[0]).join("")}
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-foreground">{p.name}</h3>
+                  <h3 className="font-semibold text-foreground">{p.name}</h3>
                   <p className="text-muted-foreground text-sm">{p.department}</p>
                   <p className="text-muted-foreground text-xs mt-2 italic">Latest: "{p.recentPaper}"</p>
                 </div>
               </div>
               <div className="flex gap-4 sm:gap-6 text-center flex-shrink-0">
                 <div>
-                  <p className="text-lg font-serif font-bold text-foreground">{p.publications}</p>
+                  <p className="text-lg font-semibold text-foreground">{p.publications}</p>
                   <p className="text-muted-foreground text-xs">Papers</p>
                 </div>
                 <div>
-                  <p className="text-lg font-serif font-bold text-foreground">{p.citations}</p>
+                  <p className="text-lg font-semibold text-foreground">{p.citations}</p>
                   <p className="text-muted-foreground text-xs">Citations</p>
                 </div>
                 <div>
-                  <p className="text-lg font-serif font-bold text-secondary">{p.hIndex}</p>
+                  <p className="text-lg font-semibold text-secondary">{p.hIndex}</p>
                   <p className="text-muted-foreground text-xs">h-Index</p>
                 </div>
               </div>

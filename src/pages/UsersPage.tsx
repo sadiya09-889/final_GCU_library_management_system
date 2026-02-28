@@ -32,7 +32,7 @@ export default function UsersPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Users Management</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Users Management</h1>
         <p className="text-muted-foreground mt-1">{users.length} registered users</p>
       </div>
 

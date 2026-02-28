@@ -82,7 +82,7 @@ export default function IssueBookPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Issue Books</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Issue Books</h1>
           <p className="text-muted-foreground mt-1">Manage book issuance and returns</p>
         </div>
         <button onClick={() => setModalOpen(true)}
@@ -146,7 +146,7 @@ export default function IssueBookPage() {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <BookCopy className="h-5 w-5 text-secondary" />
-                <h2 className="font-serif font-bold text-xl text-foreground">Issue a Book</h2>
+                <h2 className="font-semibold text-xl text-foreground">Issue a Book</h2>
               </div>
               <button onClick={() => setModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>

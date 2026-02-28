@@ -38,24 +38,24 @@ export default function FineDetailsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Fine Details</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Fine Details</h1>
         <p className="text-muted-foreground mt-1">Your fine breakdown and payment history</p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <Clock className="h-5 w-5 text-destructive mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">₹{totalPending}</p>
+          <p className="text-2xl font-semibold text-foreground">₹{totalPending}</p>
           <p className="text-muted-foreground text-xs">Pending Fine</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <CheckCircle className="h-5 w-5 text-secondary mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">₹{totalPaid}</p>
+          <p className="text-2xl font-semibold text-foreground">₹{totalPaid}</p>
           <p className="text-muted-foreground text-xs">Total Paid</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <IndianRupee className="h-5 w-5 text-accent mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">₹{FINE_PER_DAY}</p>
+          <p className="text-2xl font-semibold text-foreground">₹{FINE_PER_DAY}</p>
           <p className="text-muted-foreground text-xs">Per Day Rate</p>
         </div>
       </div>
@@ -64,7 +64,7 @@ export default function FineDetailsPage() {
       {overdueBooks.length > 0 && (
         <div className="bg-card rounded-xl shadow-card border border-border mb-6">
           <div className="p-5 border-b border-border">
-            <h2 className="font-serif font-bold text-lg text-foreground">Pending Fines</h2>
+            <h2 className="font-semibold text-lg text-foreground">Pending Fines</h2>
           </div>
           <div className="divide-y divide-border">
             {overdueBooks.map(o => (
@@ -88,7 +88,7 @@ export default function FineDetailsPage() {
       {/* Payment History */}
       <div className="bg-card rounded-xl shadow-card border border-border">
         <div className="p-5 border-b border-border">
-          <h2 className="font-serif font-bold text-lg text-foreground">Payment History</h2>
+          <h2 className="font-semibold text-lg text-foreground">Payment History</h2>
         </div>
         <div className="px-5 py-8 text-center text-muted-foreground text-sm">
           No payment history yet

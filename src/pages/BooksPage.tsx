@@ -19,6 +19,9 @@ export default function BooksPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [yearFilter, setYearFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState("All");
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState<string | null>(null);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
@@ -47,10 +50,32 @@ export default function BooksPage() {
 
   const categories = ["All", ...new Set(books.map(b => b.category).filter(Boolean))];
 
-  const filtered = books.filter(b =>
-    (catFilter === "All" || b.category === catFilter) &&
-    (b.title.toLowerCase().includes(search.toLowerCase()) || b.author.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = books.filter(b => {
+    // Search filter
+    const matchesSearch = b.title.toLowerCase().includes(search.toLowerCase()) || b.author.toLowerCase().includes(search.toLowerCase());
+    // Category filter
+    const matchesCategory = catFilter === "All" || b.category === catFilter;
+    // Status filter
+    let matchesStatus = true;
+    if (statusFilter === "Available") matchesStatus = b.available > 0;
+    else if (statusFilter === "Issued") matchesStatus = b.total - b.available > 0;
+    else if (statusFilter === "Out of Stock") matchesStatus = b.available === 0;
+    // Year filter
+    let matchesYear = true;
+    if (yearFilter === "2020-2025") matchesYear = b.year_of_publication >= 2020 && b.year_of_publication <= 2025;
+    else if (yearFilter === "2015-2019") matchesYear = b.year_of_publication >= 2015 && b.year_of_publication <= 2019;
+    else if (yearFilter === "Before 2015") matchesYear = b.year_of_publication < 2015;
+    // Date filter (using date_of_purchase as proxy for added date)
+    let matchesDate = true;
+    if (dateFilter !== "All" && b.date_of_purchase) {
+      const purchaseDate = new Date(b.date_of_purchase);
+      const now = new Date();
+      const diffDays = (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (dateFilter === "Last 30 Days") matchesDate = diffDays <= 30;
+      else if (dateFilter === "Last 6 Months") matchesDate = diffDays <= 180;
+    }
+    return matchesSearch && matchesCategory && matchesStatus && matchesYear && matchesDate;
+  });
   const totalPages = Math.ceil(filtered.length / perPage);
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);
 
@@ -82,6 +107,7 @@ export default function BooksPage() {
     const errors: Record<string, string> = {};
     if (!form.title.trim()) errors.title = "Title is required";
     if (!form.author.trim()) errors.author = "Author is required";
+    if (!form.year_of_publication) errors.year_of_publication = "Year of Publication is required";
     if (form.total < 0) errors.total = "Total must be 0 or more";
     if (form.available < 0) errors.available = "Available must be 0 or more";
     if (form.available > form.total) errors.available = "Available cannot exceed Total";
@@ -158,11 +184,13 @@ export default function BooksPage() {
   const numberFields: { label: string; key: keyof typeof emptyForm }[] = [
     { label: "Available", key: "available" },
     { label: "Total", key: "total" },
-    { label: "Year of Publication", key: "year_of_publication" },
     { label: "Price", key: "price" },
   ];
 
-  const requiredKeys = ["title", "author"];
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - 1970 + 1 }, (_, i) => currentYear - i);
+
+  const requiredKeys = ["title", "author", "year_of_publication"];
 
   if (loading) {
     return (
@@ -176,7 +204,7 @@ export default function BooksPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Books Management</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Books Management</h1>
           <p className="text-muted-foreground mt-1">{filtered.length} books in collection</p>
         </div>
         {canEdit && (
@@ -187,22 +215,7 @@ export default function BooksPage() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by title or author..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 text-sm" />
-        </div>
-        <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <select value={catFilter} onChange={e => { setCatFilter(e.target.value); setPage(1); }}
-            className="pl-10 pr-8 py-2.5 rounded-lg border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 appearance-none">
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-      </div>
+
 
       {/* Grid */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -221,7 +234,7 @@ export default function BooksPage() {
                 </div>
               )}
             </div>
-            <h3 className="font-serif font-bold text-foreground mb-1 leading-tight">{b.title}</h3>
+            <h3 className="font-semibold text-foreground mb-1 leading-tight">{b.title}</h3>
             <p className="text-muted-foreground text-sm mb-3">{b.author}</p>
             <div className="flex items-center justify-between text-xs">
               <span className="px-2 py-1 rounded-md bg-muted text-muted-foreground">{b.category}</span>
@@ -260,7 +273,7 @@ export default function BooksPage() {
           <div className="absolute inset-0 bg-foreground/20" onClick={closeModal} />
           <div className="relative bg-card rounded-xl shadow-elevated w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 border border-border">
             <div className="flex items-center justify-between mb-6 sticky top-0 bg-card pb-2">
-              <h2 className="font-serif font-bold text-xl text-foreground">{editingBook ? "Edit Book" : "Add New Book"}</h2>
+              <h2 className="font-semibold text-xl text-foreground">{editingBook ? "Edit Book" : "Add New Book"}</h2>
               <button onClick={closeModal} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
             <div className="space-y-4">
@@ -288,16 +301,35 @@ export default function BooksPage() {
                   <input type="date" value={form.date_of_purchase} onChange={e => setForm({ ...form, date_of_purchase: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">
+                    Year of Publication<span className="text-destructive ml-1">*</span>
+                  </label>
+                  <select
+                    value={form.year_of_publication}
+                    onChange={e => {
+                      setForm({ ...form, year_of_publication: parseInt(e.target.value) || 0 });
+                      if (formErrors.year_of_publication) setFormErrors(prev => ({ ...prev, year_of_publication: "" }));
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground text-sm focus:outline-none focus:ring-2 ${formErrors.year_of_publication ? "border-destructive focus:ring-destructive/50" : "border-border focus:ring-secondary/50"}`}>
+                    <option value="">Select Year</option>
+                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  {formErrors.year_of_publication && <p className="text-destructive text-xs mt-1">{formErrors.year_of_publication}</p>}
+                </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {numberFields.map(f => (
                   <div key={f.key}>
                     <label className="block text-sm font-medium text-foreground mb-1">{f.label}</label>
                     <input
-                      type="number"
-                      value={form[f.key] as number}
+                      type="text"
+                      inputMode="numeric"
+                      value={form[f.key] === 0 ? "" : form[f.key]}
+                      placeholder="0"
                       onChange={e => {
-                        setForm({ ...form, [f.key]: parseInt(e.target.value) || 0 });
+                        const val = e.target.value.replace(/\D/g, "");
+                        setForm({ ...form, [f.key]: val === "" ? 0 : parseInt(val, 10) });
                         if (formErrors[f.key]) setFormErrors(prev => ({ ...prev, [f.key]: "" }));
                       }}
                       className={`w-full px-3 py-2 rounded-lg border bg-background text-foreground text-sm focus:outline-none focus:ring-2 ${formErrors[f.key] ? "border-destructive focus:ring-destructive/50" : "border-border focus:ring-secondary/50"}`}
@@ -323,7 +355,7 @@ export default function BooksPage() {
           <div className="absolute inset-0 bg-foreground/20" onClick={() => setDeleteOpen(null)} />
           <div className="relative bg-card rounded-xl shadow-elevated w-full max-w-sm p-6 border border-border text-center">
             <Trash2 className="h-10 w-10 text-destructive mx-auto mb-4" />
-            <h3 className="font-serif font-bold text-lg text-foreground mb-2">Delete Book?</h3>
+            <h3 className="font-semibold text-lg text-foreground mb-2">Delete Book?</h3>
             <p className="text-muted-foreground text-sm mb-6">This action cannot be undone.</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => setDeleteOpen(null)} className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">Cancel</button>

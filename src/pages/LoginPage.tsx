@@ -40,7 +40,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col justify-end p-12">
           <div className="flex items-center gap-3 mb-4">
             <GraduationCap className="h-8 w-8 text-secondary" />
-            <span className="font-serif font-bold text-2xl text-primary-foreground">Garden City University</span>
+            <span className="font-semibold text-2xl text-primary-foreground">Garden City University</span>
           </div>
           <p className="text-primary-foreground/70 text-lg font-light max-w-md">
             Access the library management system to explore, issue, and manage books across our extensive collection.
@@ -53,7 +53,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 mb-8">
             <GraduationCap className="h-7 w-7 text-primary" />
-            <span className="font-serif font-bold text-xl text-primary">Garden City University</span>
+            <span className="font-semibold text-xl text-primary">Garden City University</span>
           </div>
 
           <div className="flex items-center gap-3 mb-2">
@@ -61,7 +61,7 @@ export default function LoginPage() {
               <BookOpen className="h-5 w-5 text-secondary-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-serif font-bold text-foreground">Library Portal</h1>
+              <h1 className="text-2xl font-semibold text-foreground">Library Portal</h1>
               <p className="text-muted-foreground text-sm">Sign in to continue</p>
             </div>
           </div>

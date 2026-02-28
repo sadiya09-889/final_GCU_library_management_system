@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Bell, Clock, IndianRupee, Loader2 } from "lucide-react";
-import { fetchOverdueBooks } from "@/lib/supabaseService";
+import { fetchOverdueBooks, checkAndUpdateOverdueBooks } from "@/lib/supabaseService";
 import type { IssuedBook } from "@/lib/types";
 
 const FINE_PER_DAY = 5;
@@ -11,7 +11,8 @@ export default function OverduePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchOverdueBooks()
+    checkAndUpdateOverdueBooks()
+      .then(() => fetchOverdueBooks())
       .then(setRawOverdue)
       .catch(() => { })
       .finally(() => setLoading(false));
@@ -35,24 +36,24 @@ export default function OverduePage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Overdue Management</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Overdue Management</h1>
         <p className="text-muted-foreground mt-1">{overdueBooks.length} overdue books · Fine rate: ₹{FINE_PER_DAY}/day</p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <AlertTriangle className="h-5 w-5 text-destructive mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{overdueBooks.length}</p>
+          <p className="text-2xl font-semibold text-foreground">{overdueBooks.length}</p>
           <p className="text-muted-foreground text-xs">Overdue Books</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <IndianRupee className="h-5 w-5 text-secondary mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">₹{overdueBooks.reduce((a, b) => a + b.fine, 0)}</p>
+          <p className="text-2xl font-semibold text-foreground">₹{overdueBooks.reduce((a, b) => a + b.fine, 0)}</p>
           <p className="text-muted-foreground text-xs">Total Fine Pending</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <Clock className="h-5 w-5 text-accent mb-2" />
-          <p className="text-2xl font-serif font-bold text-foreground">{overdueBooks.length > 0 ? Math.max(...overdueBooks.map(o => o.daysOverdue)) : 0}</p>
+          <p className="text-2xl font-semibold text-foreground">{overdueBooks.length > 0 ? Math.max(...overdueBooks.map(o => o.daysOverdue)) : 0}</p>
           <p className="text-muted-foreground text-xs">Max Days Overdue</p>
         </div>
       </div>

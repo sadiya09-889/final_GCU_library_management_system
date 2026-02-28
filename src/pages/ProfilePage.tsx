@@ -8,10 +8,11 @@ export default function ProfilePage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (u) {
+        const role = u.user_metadata?.role || "student";
         setUser({
-          name: u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
-          email: u.email || "",
-          role: u.user_metadata?.role || "student",
+          name: role === "librarian" || role === "admin" ? "Murali" : (u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User"),
+          email: role === "librarian" || role === "admin" ? "Murali.gcu.edu.in" : (u.email || ""),
+          role,
         });
       }
     });
@@ -22,7 +23,7 @@ export default function ProfilePage() {
   return (
     <div className="max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Profile</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Profile</h1>
         <p className="text-muted-foreground mt-1">Your account information</p>
       </div>
 
@@ -32,7 +33,7 @@ export default function ProfilePage() {
             {user.name?.split(" ").map((n: string) => n[0]).join("")}
           </div>
           <div>
-            <h2 className="font-serif font-bold text-xl text-foreground">{user.name}</h2>
+            <h2 className="font-semibold text-xl text-foreground">{user.name}</h2>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary/10 text-secondary capitalize mt-1">
               <Shield className="h-3 w-3" /> {user.role}
             </span>

@@ -58,7 +58,7 @@ export default function ReturnBooksPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Return Books</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Return Books</h1>
         <p className="text-muted-foreground mt-1">Process book returns and auto-calculate fines</p>
       </div>
 
@@ -84,7 +84,7 @@ export default function ReturnBooksPage() {
                     <BookOpen className="h-5 w-5 text-secondary" />
                   </div>
                   <div>
-                    <h3 className="font-serif font-bold text-foreground">{issue.book_title}</h3>
+                    <h3 className="font-semibold text-foreground">{issue.book_title}</h3>
                     <p className="text-muted-foreground text-sm">{issue.student_name} ({issue.student_id})</p>
                     <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
                       <span>Due: {issue.due_date}</span>
@@ -115,7 +115,7 @@ export default function ReturnBooksPage() {
           <div className="absolute inset-0 bg-foreground/20" onClick={() => setReceipt(null)} />
           <div className="relative bg-card rounded-xl shadow-elevated w-full max-w-sm p-6 border border-border text-center">
             <CheckCircle className="h-12 w-12 text-secondary mx-auto mb-4" />
-            <h3 className="font-serif font-bold text-lg text-foreground mb-2">Book Returned</h3>
+            <h3 className="font-semibold text-lg text-foreground mb-2">Book Returned</h3>
             <p className="text-muted-foreground text-sm mb-1">{receipt.book}</p>
             <p className="text-muted-foreground text-sm mb-4">by {receipt.student}</p>
             {receipt.fine > 0 && (

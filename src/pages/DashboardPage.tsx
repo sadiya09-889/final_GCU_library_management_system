@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, IndianRupee, Search, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fetchBooks, fetchIssuedBooks, fetchProfiles } from "@/lib/supabaseService";
+import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks } from "@/lib/supabaseService";
 import type { Book, IssuedBook, UserProfile } from "@/lib/types";
 
 const FINE_PER_DAY = 5;
@@ -18,14 +18,16 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([fetchBooks(), fetchIssuedBooks(), fetchProfiles()])
-      .then(([b, ib, u]) => {
-        setBooks(b);
-        setIssuedBooks(ib);
-        setUsers(u);
-      })
-      .catch(() => { })
-      .finally(() => setLoading(false));
+    checkAndUpdateOverdueBooks().then(() =>
+      Promise.all([fetchBooks(), fetchIssuedBooks(), fetchProfiles()])
+        .then(([b, ib, u]) => {
+          setBooks(b);
+          setIssuedBooks(ib);
+          setUsers(u);
+        })
+        .catch(() => { })
+        .finally(() => setLoading(false))
+    );
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -55,37 +57,49 @@ export default function DashboardPage() {
     { label: "Books Issued", value: issued, icon: BookCopy, color: "text-secondary" },
     { label: "Overdue Books", value: overdue, icon: AlertTriangle, color: "text-destructive" },
     { label: "Total Users", value: users.length, icon: Users, color: "text-secondary" },
-    { label: "Fine Collected", value: `₹${fineCollected}`, icon: IndianRupee, color: "text-accent" },
   ];
 
-  const myIssued = issuedBooks.filter(i => i.student_id === user.id || i.student_name === user.name);
+  const DEMO_STUDENT_ID = "a7d58a28-57dd-485a-aa70-fd883e85bfff";
+  const myIssued = issuedBooks.filter(i => i.student_id === DEMO_STUDENT_ID);
+  const myActive = myIssued.filter(i => i.status === "issued" || i.status === "overdue");
+  const myOverdue = myIssued.filter(i => i.status === "overdue").length;
+  const myUpcomingDue = myIssued.filter(i => {
+    if (i.status !== "issued") return false;
+    const due = new Date(i.due_date);
+    const today = new Date();
+    const diff = (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+    return diff > 0 && diff <= 3;
+  }).length;
+
   const studentStats = [
-    { label: "Books Issued", value: myIssued.filter(i => i.status === "issued").length, icon: BookOpen, color: "text-secondary" },
-    { label: "Upcoming Due", value: myIssued.filter(i => i.status === "issued").length, icon: Clock, color: "text-accent" },
-    { label: "Overdue", value: myIssued.filter(i => i.status === "overdue").length, icon: AlertTriangle, color: "text-destructive" },
-    { label: "Total Fine", value: "₹0", icon: IndianRupee, color: "text-secondary" },
+    { label: "Books Issued", value: myActive.length, icon: BookOpen, color: "text-secondary" },
+    { label: "Upcoming Due", value: myUpcomingDue, icon: Clock, color: "text-accent" },
+    { label: "Overdue", value: myOverdue, icon: AlertTriangle, color: "text-destructive" },
   ];
 
   const stats = isStudent ? studentStats : adminStats;
 
-  // Monthly data for chart (derived from issued_books)
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const now = new Date();
-  const monthlyData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const month = monthNames[d.getMonth()];
-    const count = issuedBooks.filter(ib => {
-      const issueDate = new Date(ib.issue_date);
-      return issueDate.getMonth() === d.getMonth() && issueDate.getFullYear() === d.getFullYear();
-    }).length;
-    return { month, issued: count };
-  });
+  // Dummy data for UI presentation
+  const monthlyData = [
+    { month: "Jan", issued: 5 },
+    { month: "Feb", issued: 42 },
+    { month: "Mar", issued: 12 },
+    { month: "Apr", issued: 60 },
+    { month: "May", issued: 18 },
+    { month: "Jun", issued: 75 },
+    { month: "Jul", issued: 25 },
+    { month: "Aug", issued: 55 },
+    { month: "Sep", issued: 9 },
+    { month: "Oct", issued: 48 },
+    { month: "Nov", issued: 15 },
+    { month: "Dec", issued: 70 },
+  ];
   const maxIssued = Math.max(...monthlyData.map(d => d.issued), 1);
 
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Welcome back, {user.name}. Here's an overview of the library.</p>
       </div>
 
@@ -104,72 +118,71 @@ export default function DashboardPage() {
         </form>
       )}
 
-      <div className={`grid ${isStudent ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-2 lg:grid-cols-3"} gap-4 sm:gap-5 mb-8`}>
+      <div className={`grid ${isStudent ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 lg:grid-cols-3"} gap-4 sm:gap-5 mb-8`}>
         {stats.map(s => (
           <div key={s.label} className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <s.icon className={`h-5 w-5 ${s.color}`} />
             </div>
-            <p className="text-2xl sm:text-3xl font-serif font-bold text-foreground">{s.value}</p>
-            <p className="text-muted-foreground text-sm mt-1">{s.label}</p>
+            <p className="text-3xl font-semibold text-foreground" style={{ fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
+            <p className="text-sm text-gray-600 mt-1">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Monthly Chart - Admin/Librarian only */}
-      {!isStudent && (
-        <div className="bg-card rounded-xl shadow-card border border-border p-5 mb-6">
-          <h2 className="font-serif font-bold text-lg text-foreground mb-6">Monthly Book Issues</h2>
-          <div className="flex items-end gap-3 h-40">
-            {monthlyData.map(d => (
-              <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
-                <span className="text-xs font-medium text-foreground">{d.issued}</span>
-                <div className="w-full rounded-t-md gradient-warm transition-all" style={{ height: `${(d.issued / maxIssued) * 100}%`, minHeight: d.issued > 0 ? '4px' : '0px' }} />
-                <span className="text-xs text-muted-foreground mt-1">{d.month}</span>
+      {/* Recommended Books - Student only */}
+      {isStudent && (
+        <div className="mb-8">
+          <div className="mb-4">
+            <h2 className="font-semibold text-lg text-foreground">Recommended Books</h2>
+            <p className="text-muted-foreground text-sm">Books you might be interested in</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { title: "Clean Code", author: "Robert C. Martin", category: "Computer Science" },
+              { title: "Introduction to Algorithms", author: "Thomas H. Cormen", category: "Computer Science" },
+              { title: "The Psychology of Money", author: "Morgan Housel", category: "Management" },
+            ].map((book, i) => (
+              <div key={i} className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="h-5 w-5 text-secondary" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-foreground leading-tight">{book.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">{book.author}</p>
+                    <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">{book.category}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Recent Transactions */}
-      <div className="bg-card rounded-xl shadow-card border border-border">
-        <div className="p-5 border-b border-border">
-          <h2 className="font-serif font-bold text-lg text-foreground">Recent Transactions</h2>
+      {/* Monthly Chart - Admin/Librarian only */}
+      {!isStudent && (
+        <div className="bg-card rounded-xl shadow-card border border-border p-5 mb-6">
+          <h2 className="font-semibold text-lg text-foreground mb-6">Monthly Book Issues</h2>
+          <div className="flex items-end gap-4">
+            {monthlyData.map((d, index) => {
+              const barHeight = (d.issued / maxIssued) * 200;
+              return (
+                <div key={index} className="flex-1 flex flex-col items-center">
+                  <span className="text-xs font-medium text-foreground mb-1">{d.issued}</span>
+                  <div
+                    className="w-full rounded-t-md bg-[#E87722] transition-all duration-500"
+                    style={{ height: `${barHeight}px` }}
+                  />
+                  <span className="text-xs text-muted-foreground mt-2">{d.month}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-5 py-3 text-muted-foreground font-medium">Book</th>
-                <th className="px-5 py-3 text-muted-foreground font-medium">Student</th>
-                <th className="px-5 py-3 text-muted-foreground font-medium">Issue Date</th>
-                <th className="px-5 py-3 text-muted-foreground font-medium">Due Date</th>
-                <th className="px-5 py-3 text-muted-foreground font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {issuedBooks.slice(0, 10).map(ib => (
-                <tr key={ib.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="px-5 py-3 font-medium text-foreground">{ib.book_title}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{ib.student_name}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{ib.issue_date}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{ib.due_date}</td>
-                  <td className="px-5 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                      ${ib.status === "returned" ? "bg-accent/20 text-accent-foreground" : ib.status === "overdue" ? "bg-destructive/10 text-destructive" : "bg-secondary/10 text-secondary"}`}>
-                      {ib.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {issuedBooks.length === 0 && (
-                <tr><td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">No transactions yet</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
+
+
     </div>
   );
 }

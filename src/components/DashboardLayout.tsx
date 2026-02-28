@@ -17,11 +17,12 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", roles: ["admin", "librarian", "student"] },
   { label: "Books", icon: BookOpen, path: "/dashboard/books", roles: ["admin", "librarian"] },
-  { label: "Add / Issue Book", icon: BookCopy, path: "/dashboard/issue", roles: ["admin", "librarian"] },
+  { label: "Issue Books", icon: BookCopy, path: "/dashboard/issue", roles: ["admin", "librarian"] },
   { label: "Return Books", icon: RotateCcw, path: "/dashboard/return", roles: ["admin", "librarian"] },
   { label: "Overdue Management", icon: AlertTriangle, path: "/dashboard/overdue", roles: ["admin", "librarian"] },
   { label: "My Books", icon: BookMarked, path: "/dashboard/my-books", roles: ["student"] },
-  { label: "Fine Details", icon: IndianRupee, path: "/dashboard/fines", roles: ["student"] },
+
+
   { label: "Search Library", icon: Search, path: "/dashboard/opac", roles: ["admin", "librarian", "student"] },
   { label: "OPAC", icon: BookOpen, path: "/dashboard/opac", roles: ["admin", "librarian"] },
   { label: "DELNET", icon: Globe, path: "/dashboard/delnet", roles: ["admin", "librarian", "student"] },

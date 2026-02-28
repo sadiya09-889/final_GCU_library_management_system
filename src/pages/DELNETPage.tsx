@@ -41,7 +41,7 @@ export default function DELNETPage() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Globe className="h-6 w-6 text-secondary" />
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">DELNET</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">DELNET</h1>
         </div>
         <p className="text-muted-foreground mt-1">Developing Library Network — Inter-Library Loan & Resource Sharing</p>
       </div>
@@ -50,17 +50,17 @@ export default function DELNETPage() {
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-card rounded-xl p-5 shadow-card border border-border text-center">
           <Library className="h-6 w-6 text-secondary mx-auto mb-2" />
-          <p className="font-serif font-bold text-foreground text-lg">6,500+</p>
+          <p className="font-semibold text-foreground text-lg">6,500+</p>
           <p className="text-muted-foreground text-xs">Member Libraries</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border text-center">
           <Send className="h-6 w-6 text-accent mx-auto mb-2" />
-          <p className="font-serif font-bold text-foreground text-lg">{requests.filter(r => r.status === "pending").length}</p>
+          <p className="font-semibold text-foreground text-lg">{requests.filter(r => r.status === "pending").length}</p>
           <p className="text-muted-foreground text-xs">Pending Requests</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border text-center">
           <CheckCircle className="h-6 w-6 text-secondary mx-auto mb-2" />
-          <p className="font-serif font-bold text-foreground text-lg">{requests.filter(r => r.status === "delivered").length}</p>
+          <p className="font-semibold text-foreground text-lg">{requests.filter(r => r.status === "delivered").length}</p>
           <p className="text-muted-foreground text-xs">Delivered</p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function DELNETPage() {
       {/* Request Tracking */}
       <div className="bg-card rounded-xl shadow-card border border-border">
         <div className="p-5 border-b border-border">
-          <h2 className="font-serif font-bold text-lg text-foreground">Inter-Library Loan Requests</h2>
+          <h2 className="font-semibold text-lg text-foreground">Inter-Library Loan Requests</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -124,7 +124,7 @@ export default function DELNETPage() {
           <div className="absolute inset-0 bg-foreground/20" onClick={() => setNewRequest(false)} />
           <div className="relative bg-card rounded-xl shadow-elevated w-full max-w-lg p-6 border border-border">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-serif font-bold text-xl text-foreground">New Inter-Library Loan Request</h2>
+              <h2 className="font-semibold text-xl text-foreground">New Inter-Library Loan Request</h2>
               <button onClick={() => setNewRequest(false)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
             <div className="space-y-4">
