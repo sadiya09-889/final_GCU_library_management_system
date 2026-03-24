@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { BookCopy, Search, Plus, X, Loader2 } from "lucide-react";
+import { BookCopy, Search, Plus, X, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { IssuedBook } from "@/lib/types";
 import { fetchIssuedBooks, fetchBooks, issueBook } from "@/lib/supabaseService";
+import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 
 export default function IssueBookPage() {
   const [issues, setIssues] = useState<IssuedBook[]>([]);
@@ -70,6 +71,26 @@ export default function IssueBookPage() {
     }
   };
 
+  const handleDownloadIssues = () => {
+    if (filtered.length === 0) {
+      toast.info("No issue records to export");
+      return;
+    }
+
+    const rows = filtered.map((ib) => ({
+      book_title: ib.book_title,
+      student_name: ib.student_name,
+      student_id: ib.student_id,
+      issue_date: ib.issue_date,
+      due_date: ib.due_date,
+      return_date: ib.return_date || "",
+      status: ib.status,
+    }));
+
+    exportRowsAsExcelCsv(rows, "issued_books_export");
+    toast.success("Issue Excel sheet downloaded");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -85,10 +106,16 @@ export default function IssueBookPage() {
           <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Issue Books</h1>
           <p className="text-muted-foreground mt-1">Manage book issuance and returns</p>
         </div>
-        <button onClick={() => setModalOpen(true)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
-          <Plus className="h-4 w-4" /> Issue Book
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleDownloadIssues}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border bg-card font-semibold text-sm text-foreground hover:bg-muted transition-colors">
+            <Download className="h-4 w-4" /> Download Excel
+          </button>
+          <button onClick={() => setModalOpen(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
+            <Plus className="h-4 w-4" /> Issue Book
+          </button>
+        </div>
       </div>
 
       <div className="relative mb-6 max-w-md">

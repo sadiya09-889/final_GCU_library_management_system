@@ -1,5 +1,43 @@
 # Welcome to your Lovable project
 
+## Supabase Login Setup (Admin and Librarian)
+
+To log in using these accounts:
+
+- Admin: `admin@gcu.edu.in` / `admin123`
+- Librarian: `librarian@gcu.edu.in` / `lib123`
+
+you must connect this app to your Supabase project and create those users in Supabase Auth.
+
+1. Create a `.env` file in the project root:
+
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+```
+
+2. Run the SQL schema in [supabase_setup.sql](supabase_setup.sql) in Supabase SQL Editor.
+
+Important:
+- Do not run `SELECT auth.create_user(...)` in SQL Editor. Hosted Supabase projects do not expose that function, and it fails with `ERROR: 42883`.
+- Create auth users using either the seed script below or Supabase Dashboard -> Authentication -> Users -> Add user.
+
+3. Create auth users (admin/librarian) with the seed script:
+
+```sh
+npm run seed:users -- <SUPABASE_URL> <SERVICE_ROLE_KEY>
+```
+
+Example:
+
+```sh
+npm run seed:users -- https://abcxyz.supabase.co eyJ...service_role_key...
+```
+
+Get `SERVICE_ROLE_KEY` from Supabase Dashboard -> Project Settings -> API -> `service_role`.
+
+After this, you can log in from the app at `/login` using the admin and librarian credentials above.
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID

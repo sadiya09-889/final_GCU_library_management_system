@@ -1,10 +1,20 @@
 import { useState, useEffect } from "react";
-import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, IndianRupee, Search, Loader2 } from "lucide-react";
+import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks } from "@/lib/supabaseService";
 import type { Book, IssuedBook, UserProfile } from "@/lib/types";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
 
-const FINE_PER_DAY = 5;
+const FEE_PER_DAY = 2;
 
 export default function DashboardPage() {
   const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
@@ -49,7 +59,6 @@ export default function DashboardPage() {
   const available = books.reduce((a, b) => a + b.available, 0);
   const issued = issuedBooks.filter(i => i.status === "issued").length;
   const overdue = issuedBooks.filter(i => i.status === "overdue").length;
-  const fineCollected = overdue * FINE_PER_DAY * 10;
 
   const adminStats = [
     { label: "Total Books", value: totalBooks, icon: BookOpen, color: "text-secondary" },
@@ -79,22 +88,55 @@ export default function DashboardPage() {
 
   const stats = isStudent ? studentStats : adminStats;
 
-  // Dummy data for UI presentation
-  const monthlyData = [
-    { month: "Jan", issued: 5 },
-    { month: "Feb", issued: 42 },
-    { month: "Mar", issued: 12 },
-    { month: "Apr", issued: 60 },
-    { month: "May", issued: 18 },
-    { month: "Jun", issued: 75 },
-    { month: "Jul", issued: 25 },
-    { month: "Aug", issued: 55 },
-    { month: "Sep", issued: 9 },
-    { month: "Oct", issued: 48 },
-    { month: "Nov", issued: 15 },
-    { month: "Dec", issued: 70 },
-  ];
-  const maxIssued = Math.max(...monthlyData.map(d => d.issued), 1);
+  const toDateOnly = (value: string) => {
+    const d = new Date(value);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const formatDay = (value: Date) =>
+    value.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const analyticsData = Array.from({ length: 14 }, (_, idx) => {
+    const day = new Date(today);
+    day.setDate(today.getDate() - (13 - idx));
+
+    const booksAsOfDay = books.filter((b) => {
+      const createdAt = (b as Book & { created_at?: string }).created_at || b.date_of_purchase;
+      if (!createdAt) return true;
+      return toDateOnly(createdAt) <= day;
+    });
+
+    const totalBooksAsOfDay = booksAsOfDay.reduce((sum, b) => sum + b.total, 0);
+
+    const activeIssuesAsOfDay = issuedBooks.filter((i) => {
+      const issueDate = toDateOnly(i.issue_date);
+      if (issueDate > day) return false;
+      if (!i.return_date) return true;
+      return toDateOnly(i.return_date) > day;
+    });
+
+    const issuedAsOfDay = activeIssuesAsOfDay.length;
+    const overdueAsOfDay = activeIssuesAsOfDay.filter((i) => toDateOnly(i.due_date) < day).length;
+    const availableAsOfDay = Math.max(totalBooksAsOfDay - issuedAsOfDay, 0);
+
+    const usersAsOfDay = users.filter((u) => {
+      if (!u.join_date) return true;
+      return toDateOnly(u.join_date) <= day;
+    }).length;
+
+    return {
+      day: formatDay(day),
+      totalBooks: totalBooksAsOfDay,
+      booksAvailable: availableAsOfDay,
+      booksIssued: issuedAsOfDay,
+      overdueBooks: overdueAsOfDay,
+      totalUsers: usersAsOfDay,
+    };
+  });
 
   return (
     <div>
@@ -160,24 +202,31 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Monthly Chart - Admin/Librarian only */}
+      {/* Daily Analytics - Admin/Librarian only */}
       {!isStudent && (
         <div className="bg-card rounded-xl shadow-card border border-border p-5 mb-6">
-          <h2 className="font-semibold text-lg text-foreground mb-6">Monthly Book Issues</h2>
-          <div className="flex items-end gap-4">
-            {monthlyData.map((d, index) => {
-              const barHeight = (d.issued / maxIssued) * 200;
-              return (
-                <div key={index} className="flex-1 flex flex-col items-center">
-                  <span className="text-xs font-medium text-foreground mb-1">{d.issued}</span>
-                  <div
-                    className="w-full rounded-t-md bg-[#E87722] transition-all duration-500"
-                    style={{ height: `${barHeight}px` }}
-                  />
-                  <span className="text-xs text-muted-foreground mt-2">{d.month}</span>
-                </div>
-              );
-            })}
+          <h2 className="font-semibold text-lg text-foreground mb-6">Daily Library Analytics (Last 14 Days)</h2>
+          <div className="h-[320px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={analyticsData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.25)" />
+                <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="rgba(128,128,128,0.6)" />
+                <YAxis tick={{ fontSize: 12 }} stroke="rgba(128,128,128,0.6)" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "0.5rem",
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="totalBooks" name="Total Books" stroke="#E87722" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="booksAvailable" name="Books Available" stroke="#16a34a" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="booksIssued" name="Books Issued" stroke="#0ea5e9" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="overdueBooks" name="Overdue Books" stroke="#dc2626" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="totalUsers" name="Total Users" stroke="#7c3aed" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}

@@ -3,7 +3,7 @@ import { IndianRupee, CheckCircle, Clock, CreditCard, Loader2 } from "lucide-rea
 import { fetchOverdueBooks } from "@/lib/supabaseService";
 import type { IssuedBook } from "@/lib/types";
 
-const FINE_PER_DAY = 5;
+const FEE_PER_DAY = 2;
 
 export default function FineDetailsPage() {
   const [rawOverdue, setRawOverdue] = useState<IssuedBook[]>([]);
@@ -20,10 +20,10 @@ export default function FineDetailsPage() {
     const due = new Date(i.due_date);
     const today = new Date();
     const days = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-    return { ...i, daysOverdue: days, fine: days * FINE_PER_DAY };
+    return { ...i, daysOverdue: days, penaltyFee: days * FEE_PER_DAY };
   });
 
-  const totalPending = overdueBooks.reduce((a, b) => a + b.fine, 0);
+  const totalPending = overdueBooks.reduce((a, b) => a + b.penaltyFee, 0);
   // Payment history would come from a payments table in a full implementation
   const totalPaid = 0;
 
@@ -38,15 +38,15 @@ export default function FineDetailsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Fine Details</h1>
-        <p className="text-muted-foreground mt-1">Your fine breakdown and payment history</p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Penalty Fee Details</h1>
+        <p className="text-muted-foreground mt-1">Your penalty fee breakdown and payment history</p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <Clock className="h-5 w-5 text-destructive mb-2" />
           <p className="text-2xl font-semibold text-foreground">₹{totalPending}</p>
-          <p className="text-muted-foreground text-xs">Pending Fine</p>
+          <p className="text-muted-foreground text-xs">Pending Penalty Fee</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <CheckCircle className="h-5 w-5 text-secondary mb-2" />
@@ -55,16 +55,16 @@ export default function FineDetailsPage() {
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <IndianRupee className="h-5 w-5 text-accent mb-2" />
-          <p className="text-2xl font-semibold text-foreground">₹{FINE_PER_DAY}</p>
+          <p className="text-2xl font-semibold text-foreground">₹{FEE_PER_DAY}</p>
           <p className="text-muted-foreground text-xs">Per Day Rate</p>
         </div>
       </div>
 
-      {/* Pending Fines */}
+      {/* Pending Penalty Fees */}
       {overdueBooks.length > 0 && (
         <div className="bg-card rounded-xl shadow-card border border-border mb-6">
           <div className="p-5 border-b border-border">
-            <h2 className="font-semibold text-lg text-foreground">Pending Fines</h2>
+            <h2 className="font-semibold text-lg text-foreground">Pending Penalty Fees</h2>
           </div>
           <div className="divide-y divide-border">
             {overdueBooks.map(o => (
@@ -74,7 +74,7 @@ export default function FineDetailsPage() {
                   <p className="text-muted-foreground text-xs">{o.daysOverdue} days overdue</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold text-destructive">₹{o.fine}</span>
+                  <span className="font-bold text-destructive">₹{o.penaltyFee}</span>
                   <button className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
                     <CreditCard className="h-3 w-3" /> Pay
                   </button>

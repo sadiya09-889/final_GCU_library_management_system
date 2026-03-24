@@ -23,7 +23,7 @@ const navItems: NavItem[] = [
   { label: "My Books", icon: BookMarked, path: "/dashboard/my-books", roles: ["student"] },
 
 
-  { label: "Search Library", icon: Search, path: "/dashboard/opac", roles: ["admin", "librarian", "student"] },
+  { label: "OPAC", icon: Search, path: "/dashboard/opac", roles: ["admin", "librarian", "student"] },
   { label: "OPAC", icon: BookOpen, path: "/dashboard/opac", roles: ["admin", "librarian"] },
   { label: "DELNET", icon: Globe, path: "/dashboard/delnet", roles: ["admin", "librarian", "student"] },
   { label: "IRINS", icon: Award, path: "/dashboard/irins", roles: ["admin", "librarian"] },
@@ -76,9 +76,6 @@ export default function DashboardLayout() {
   const seen = new Set<string>();
   const filteredNav = navItems.filter(n => {
     if (!n.roles.includes(user.role)) return false;
-    // For student, "Search Library" replaces "OPAC"
-    if (user.role === "student" && n.label === "OPAC") return false;
-    if (user.role !== "student" && n.label === "Search Library") return false;
     if (seen.has(n.path)) return false;
     seen.add(n.path);
     return true;

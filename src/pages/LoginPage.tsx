@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { BookOpen, Eye, EyeOff, GraduationCap } from "lucide-react";
 import campusImage from "@/assets/campus.jpeg";
-import { supabase } from "@/lib/supabase";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,14 +15,27 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!isSupabaseConfigured) {
+      setError("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.");
+      return;
+    }
+
     setLoading(true);
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    const normalizedEmail = email.trim().toLowerCase();
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
     setLoading(false);
     if (authError) {
+      const message = (authError.message || "").toLowerCase();
       if (authError.message === "Failed to fetch" || authError.message.includes("fetch")) {
         setError("Cannot connect to the server. Please check your internet connection or try again later.");
-      } else if (authError.message.toLowerCase().includes("invalid")) {
-        setError("Invalid email or password.");
+      } else if (message.includes("email_not_confirmed") || message.includes("email not confirmed")) {
+        setError("Email is not confirmed in Supabase. Confirm the user in Authentication -> Users, then try again.");
+      } else if (message.includes("invalid_credentials") || message.includes("invalid login credentials") || message.includes("invalid")) {
+        setError("Invalid email or password, or this user is not created yet in Supabase Auth.");
       } else {
         setError(authError.message);
       }
@@ -99,9 +112,15 @@ export default function LoginPage() {
             <div className="space-y-1 text-xs text-muted-foreground">
               <p><span className="font-medium text-foreground">Admin:</span> admin@gcu.edu.in / admin123</p>
               <p><span className="font-medium text-foreground">Librarian:</span> librarian@gcu.edu.in / lib123</p>
-              <p><span className="font-medium text-foreground">Student:</span> student@gcu.edu.in / stu123</p>
             </div>
           </div>
+
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <Link to="/signup" className="font-medium text-primary hover:underline">
+              Sign Up
+            </Link>
+          </p>
         </div>
       </div>
     </div>

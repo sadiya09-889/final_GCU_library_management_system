@@ -3,7 +3,7 @@ import { AlertTriangle, Bell, Clock, IndianRupee, Loader2 } from "lucide-react";
 import { fetchOverdueBooks, checkAndUpdateOverdueBooks } from "@/lib/supabaseService";
 import type { IssuedBook } from "@/lib/types";
 
-const FINE_PER_DAY = 5;
+const FEE_PER_DAY = 2;
 
 export default function OverduePage() {
   const [notified, setNotified] = useState<string[]>([]);
@@ -22,7 +22,7 @@ export default function OverduePage() {
     const due = new Date(i.due_date);
     const today = new Date();
     const daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-    return { ...i, daysOverdue, fine: daysOverdue * FINE_PER_DAY };
+    return { ...i, daysOverdue, penaltyFee: daysOverdue * FEE_PER_DAY };
   });
 
   if (loading) {
@@ -37,7 +37,7 @@ export default function OverduePage() {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Overdue Management</h1>
-        <p className="text-muted-foreground mt-1">{overdueBooks.length} overdue books · Fine rate: ₹{FINE_PER_DAY}/day</p>
+        <p className="text-muted-foreground mt-1">{overdueBooks.length} overdue books · Penalty fee rate: ₹{FEE_PER_DAY}/day</p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
@@ -48,8 +48,8 @@ export default function OverduePage() {
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <IndianRupee className="h-5 w-5 text-secondary mb-2" />
-          <p className="text-2xl font-semibold text-foreground">₹{overdueBooks.reduce((a, b) => a + b.fine, 0)}</p>
-          <p className="text-muted-foreground text-xs">Total Fine Pending</p>
+          <p className="text-2xl font-semibold text-foreground">₹{overdueBooks.reduce((a, b) => a + b.penaltyFee, 0)}</p>
+          <p className="text-muted-foreground text-xs">Total Penalty Fee Pending</p>
         </div>
         <div className="bg-card rounded-xl p-5 shadow-card border border-border">
           <Clock className="h-5 w-5 text-accent mb-2" />
@@ -66,7 +66,7 @@ export default function OverduePage() {
               <th className="px-5 py-3 text-muted-foreground font-medium">Student</th>
               <th className="px-5 py-3 text-muted-foreground font-medium">Due Date</th>
               <th className="px-5 py-3 text-muted-foreground font-medium">Days Overdue</th>
-              <th className="px-5 py-3 text-muted-foreground font-medium">Fine</th>
+              <th className="px-5 py-3 text-muted-foreground font-medium">Penalty Fee</th>
               <th className="px-5 py-3 text-muted-foreground font-medium">Action</th>
             </tr>
           </thead>
@@ -79,7 +79,7 @@ export default function OverduePage() {
                 <td className="px-5 py-3">
                   <span className="text-destructive font-medium">{o.daysOverdue} days</span>
                 </td>
-                <td className="px-5 py-3 font-medium text-foreground">₹{o.fine}</td>
+                <td className="px-5 py-3 font-medium text-foreground">₹{o.penaltyFee}</td>
                 <td className="px-5 py-3">
                   {notified.includes(o.id) ? (
                     <span className="text-xs text-muted-foreground">Notified ✓</span>

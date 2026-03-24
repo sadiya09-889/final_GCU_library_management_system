@@ -4,13 +4,13 @@ import { toast } from "sonner";
 import type { IssuedBook } from "@/lib/types";
 import { fetchIssuedBooks, returnBook } from "@/lib/supabaseService";
 
-const FINE_PER_DAY = 5;
+const FEE_PER_DAY = 2;
 
 export default function ReturnBooksPage() {
   const [issues, setIssues] = useState<IssuedBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [receipt, setReceipt] = useState<{ book: string; student: string; fine: number } | null>(null);
+  const [receipt, setReceipt] = useState<{ book: string; student: string; penaltyFee: number } | null>(null);
 
   const loadIssues = async () => {
     try {
@@ -36,11 +36,11 @@ export default function ReturnBooksPage() {
     const due = new Date(issue.due_date);
     const today = new Date();
     const daysOverdue = Math.max(0, Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
-    const fine = daysOverdue * FINE_PER_DAY;
+    const penaltyFee = daysOverdue * FEE_PER_DAY;
 
     try {
       await returnBook(issue.id);
-      setReceipt({ book: issue.book_title, student: issue.student_name, fine });
+      setReceipt({ book: issue.book_title, student: issue.student_name, penaltyFee });
       await loadIssues();
     } catch {
       toast.error("Failed to return book");
@@ -59,7 +59,7 @@ export default function ReturnBooksPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Return Books</h1>
-        <p className="text-muted-foreground mt-1">Process book returns and auto-calculate fines</p>
+        <p className="text-muted-foreground mt-1">Process book returns and auto-calculate penalty fees</p>
       </div>
 
       <div className="relative mb-6 max-w-md">
@@ -74,7 +74,7 @@ export default function ReturnBooksPage() {
           const due = new Date(issue.due_date);
           const today = new Date();
           const daysOverdue = Math.max(0, Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
-          const fine = daysOverdue * FINE_PER_DAY;
+          const penaltyFee = daysOverdue * FEE_PER_DAY;
 
           return (
             <div key={issue.id} className="bg-card rounded-xl p-5 shadow-card border border-border">
@@ -89,7 +89,7 @@ export default function ReturnBooksPage() {
                     <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
                       <span>Due: {issue.due_date}</span>
                       {daysOverdue > 0 && (
-                        <span className="text-destructive font-medium">{daysOverdue} days overdue · Fine: ₹{fine}</span>
+                        <span className="text-destructive font-medium">{daysOverdue} days overdue · Penalty Fee: ₹{penaltyFee}</span>
                       )}
                     </div>
                   </div>
@@ -118,10 +118,10 @@ export default function ReturnBooksPage() {
             <h3 className="font-semibold text-lg text-foreground mb-2">Book Returned</h3>
             <p className="text-muted-foreground text-sm mb-1">{receipt.book}</p>
             <p className="text-muted-foreground text-sm mb-4">by {receipt.student}</p>
-            {receipt.fine > 0 && (
+            {receipt.penaltyFee > 0 && (
               <div className="bg-destructive/10 rounded-lg p-3 mb-4">
                 <p className="text-destructive font-medium text-sm flex items-center justify-center gap-1">
-                  <IndianRupee className="h-4 w-4" /> Fine: ₹{receipt.fine}
+                  <IndianRupee className="h-4 w-4" /> Penalty Fee: ₹{receipt.penaltyFee}
                 </p>
               </div>
             )}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2 } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { Book } from "@/lib/types";
 import { fetchBooks, addBook, updateBook, deleteBook } from "@/lib/supabaseService";
+import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 
 const emptyForm = {
   title: "", sub_title: "", author: "", author2: "", isbn: "", category: "",
@@ -155,6 +156,36 @@ export default function BooksPage() {
     }
   };
 
+  const handleDownloadBooks = () => {
+    if (filtered.length === 0) {
+      toast.info("No books to export");
+      return;
+    }
+
+    const rows = filtered.map((b) => ({
+      title: b.title,
+      sub_title: b.sub_title,
+      author: b.author,
+      author2: b.author2,
+      isbn: b.isbn,
+      category: b.category,
+      available: b.available,
+      total: b.total,
+      class_number: b.class_number,
+      book_number: b.book_number,
+      edition: b.edition,
+      year_of_publication: b.year_of_publication,
+      subject: b.subject,
+      date_of_purchase: b.date_of_purchase,
+      vendor: b.vendor,
+      price: b.price,
+      item_type: b.item_type,
+    }));
+
+    exportRowsAsExcelCsv(rows, "books_export");
+    toast.success("Books Excel sheet downloaded");
+  };
+
   const textFields: { label: string; key: keyof typeof emptyForm }[] = [
     { label: "Title", key: "title" },
     { label: "Sub Title", key: "sub_title" },
@@ -208,10 +239,16 @@ export default function BooksPage() {
           <p className="text-muted-foreground mt-1">{filtered.length} books in collection</p>
         </div>
         {canEdit && (
-          <button onClick={openAdd}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
-            <Plus className="h-4 w-4" /> Add Book
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={handleDownloadBooks}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border bg-card font-semibold text-sm text-foreground hover:bg-muted transition-colors">
+              <Download className="h-4 w-4" /> Download Excel
+            </button>
+            <button onClick={openAdd}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
+              <Plus className="h-4 w-4" /> Add Book
+            </button>
+          </div>
         )}
       </div>
 

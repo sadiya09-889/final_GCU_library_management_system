@@ -20,7 +20,10 @@ import ReturnBooksPage from "./pages/ReturnBooksPage";
 import MyBooksPage from "./pages/MyBooksPage";
 import FineDetailsPage from "./pages/FineDetailsPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import SignupPage from "./pages/SignupPage";
+import VerifyOTPPage from "./pages/VerifyOTPPage";
 import NotFound from "./pages/NotFound";
+import { RequireAuth, RequireRole } from "./components/AuthGuards";
 
 const queryClient = new QueryClient();
 
@@ -33,21 +36,100 @@ const App = () => (
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/verify-otp" element={<VerifyOTPPage />} />
+          <Route
+            path="/dashboard"
+            element={(
+              <RequireAuth>
+                <DashboardLayout />
+              </RequireAuth>
+            )}
+          >
             <Route index element={<DashboardPage />} />
-            <Route path="books" element={<BooksPage />} />
-            <Route path="issue" element={<IssueBookPage />} />
-            <Route path="return" element={<ReturnBooksPage />} />
-            <Route path="overdue" element={<OverduePage />} />
-            <Route path="users" element={<UsersPage />} />
+            <Route
+              path="books"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <BooksPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="issue"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <IssueBookPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="return"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <ReturnBooksPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="overdue"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <OverduePage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="users"
+              element={(
+                <RequireRole allowedRoles={["admin"]}>
+                  <UsersPage />
+                </RequireRole>
+              )}
+            />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="opac" element={<OPACPage />} />
             <Route path="delnet" element={<DELNETPage />} />
-            <Route path="irins" element={<IRINSPage />} />
-            <Route path="reports" element={<ReportsPage />} />
-            <Route path="my-books" element={<MyBooksPage />} />
-            <Route path="fines" element={<FineDetailsPage />} />
-            <Route path="notifications" element={<NotificationsPage />} />
+            <Route
+              path="irins"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <IRINSPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="reports"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <ReportsPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="my-books"
+              element={(
+                <RequireRole allowedRoles={["student"]}>
+                  <MyBooksPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="fines"
+              element={(
+                <RequireRole allowedRoles={["student"]}>
+                  <FineDetailsPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="notifications"
+              element={(
+                <RequireRole allowedRoles={["student"]}>
+                  <NotificationsPage />
+                </RequireRole>
+              )}
+            />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
