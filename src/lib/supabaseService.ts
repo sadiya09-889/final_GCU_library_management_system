@@ -1,6 +1,16 @@
 import { supabase } from "./supabase";
 import type { Book, IssuedBook, UserProfile } from "./types";
 
+function normalizeBookPayload<T extends Partial<Omit<Book, "id">>>(book: T) {
+    const date = book.date_of_purchase;
+
+    return {
+        ...book,
+        // Supabase date columns reject empty strings; send null when no date is chosen.
+        date_of_purchase: typeof date === "string" && date.trim() === "" ? null : date,
+    };
+}
+
 // ─── Books ──────────────────────────────────────────────
 
 export async function fetchBooks(): Promise<Book[]> {
@@ -13,9 +23,11 @@ export async function fetchBooks(): Promise<Book[]> {
 }
 
 export async function addBook(book: Omit<Book, "id">): Promise<Book> {
+    const payload = normalizeBookPayload(book);
+
     const { data, error } = await supabase
         .from("books")
-        .insert(book)
+        .insert(payload)
         .select()
         .single();
     if (error) throw error;
@@ -23,9 +35,11 @@ export async function addBook(book: Omit<Book, "id">): Promise<Book> {
 }
 
 export async function updateBook(id: string, updates: Partial<Book>): Promise<Book> {
+    const payload = normalizeBookPayload(updates);
+
     const { data, error } = await supabase
         .from("books")
-        .update(updates)
+        .update(payload)
         .eq("id", id)
         .select()
         .single();

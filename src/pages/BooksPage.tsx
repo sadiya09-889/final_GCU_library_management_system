@@ -5,6 +5,14 @@ import type { Book } from "@/lib/types";
 import { fetchBooks, addBook, updateBook, deleteBook } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
+
 const emptyForm = {
   title: "", sub_title: "", author: "", author2: "", isbn: "", category: "",
   available: 0, total: 0, class_number: "", book_number: "", edition: "",
@@ -40,8 +48,8 @@ export default function BooksPage() {
     try {
       const data = await fetchBooks();
       setBooks(data);
-    } catch {
-      toast.error("Failed to load books");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to load books"));
     } finally {
       setLoading(false);
     }
@@ -133,8 +141,8 @@ export default function BooksPage() {
       }
       setModalOpen(false);
       await loadBooks();
-    } catch {
-      toast.error("Failed to save book");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to save book"));
     } finally {
       setSaving(false);
     }
@@ -151,8 +159,8 @@ export default function BooksPage() {
       setDeleteOpen(null);
       toast.success("Book deleted successfully");
       await loadBooks();
-    } catch {
-      toast.error("Failed to delete book");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to delete book"));
     }
   };
 
