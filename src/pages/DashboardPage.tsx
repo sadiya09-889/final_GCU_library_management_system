@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks } from "@/lib/supabaseService";
+import { supabase } from "@/lib/supabase";
 import type { Book, IssuedBook, UserProfile } from "@/lib/types";
 import {
   ResponsiveContainer,
@@ -14,8 +15,6 @@ import {
   Legend,
 } from "recharts";
 
-const FEE_PER_DAY = 2;
-
 export default function DashboardPage() {
   const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
   const navigate = useNavigate();
@@ -26,18 +25,56 @@ export default function DashboardPage() {
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadDashboardData = async () => {
+    try {
+      await checkAndUpdateOverdueBooks();
+      const [b, ib, u] = await Promise.all([fetchBooks(), fetchIssuedBooks(), fetchProfiles()]);
+      setBooks(b);
+      setIssuedBooks(ib);
+      setUsers(u);
+    } catch {
+      // Keep existing UX: fail silently and render available data.
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    checkAndUpdateOverdueBooks().then(() =>
-      Promise.all([fetchBooks(), fetchIssuedBooks(), fetchProfiles()])
-        .then(([b, ib, u]) => {
-          setBooks(b);
-          setIssuedBooks(ib);
-          setUsers(u);
-        })
-        .catch(() => { })
-        .finally(() => setLoading(false))
-    );
+    loadDashboardData();
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        void loadDashboardData();
+      }, 400);
+    };
+
+    const channel = supabase
+      .channel("dashboard-live-updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "books" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "issued_books" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleRefresh)
+      .subscribe();
+
+    // Fallback refresh in case realtime events are delayed/missed.
+    const intervalId = setInterval(() => {
+      void loadDashboardData();
+    }, 10000);
+
+    const handleWindowFocus = () => {
+      void loadDashboardData();
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleWindowFocus);
+      void supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -68,8 +105,8 @@ export default function DashboardPage() {
     { label: "Total Users", value: users.length, icon: Users, color: "text-secondary" },
   ];
 
-  const DEMO_STUDENT_ID = "a7d58a28-57dd-485a-aa70-fd883e85bfff";
-  const myIssued = issuedBooks.filter(i => i.student_id === DEMO_STUDENT_ID);
+  const studentId = typeof user.id === "string" ? user.id : "";
+  const myIssued = issuedBooks.filter(i => i.student_id === studentId);
   const myActive = myIssued.filter(i => i.status === "issued" || i.status === "overdue");
   const myOverdue = myIssued.filter(i => i.status === "overdue").length;
   const myUpcomingDue = myIssued.filter(i => {
@@ -85,6 +122,15 @@ export default function DashboardPage() {
     { label: "Upcoming Due", value: myUpcomingDue, icon: Clock, color: "text-accent" },
     { label: "Overdue", value: myOverdue, icon: AlertTriangle, color: "text-destructive" },
   ];
+
+  const recommendedBooks = books
+    .filter((b) => b.available > 0)
+    .sort((a, b) => {
+      const aDate = (a as Book & { created_at?: string }).created_at || a.date_of_purchase || "";
+      const bDate = (b as Book & { created_at?: string }).created_at || b.date_of_purchase || "";
+      return new Date(bDate).getTime() - new Date(aDate).getTime();
+    })
+    .slice(0, 3);
 
   const stats = isStudent ? studentStats : adminStats;
 
@@ -138,6 +184,29 @@ export default function DashboardPage() {
     };
   });
 
+  const monthlyAnalyticsData = Array.from({ length: 12 }, (_, idx) => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth() - (11 - idx), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() - (11 - idx) + 1, 1);
+
+    const issues = issuedBooks.filter((i) => {
+      const issueDate = toDateOnly(i.issue_date);
+      return issueDate >= monthStart && issueDate < nextMonthStart;
+    }).length;
+
+    const returns = issuedBooks.filter((i) => {
+      if (!i.return_date) return false;
+      const returnDate = toDateOnly(i.return_date);
+      return returnDate >= monthStart && returnDate < nextMonthStart;
+    }).length;
+
+    return {
+      month: monthStart.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+      issues,
+      returns,
+    };
+  });
+
   return (
     <div>
       <div className="mb-8">
@@ -180,12 +249,8 @@ export default function DashboardPage() {
             <p className="text-muted-foreground text-sm">Books you might be interested in</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { title: "Clean Code", author: "Robert C. Martin", category: "Computer Science" },
-              { title: "Introduction to Algorithms", author: "Thomas H. Cormen", category: "Computer Science" },
-              { title: "The Psychology of Money", author: "Morgan Housel", category: "Management" },
-            ].map((book, i) => (
-              <div key={i} className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
+            {recommendedBooks.map((book) => (
+              <div key={book.id} className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0">
                     <BookOpen className="h-5 w-5 text-secondary" />
@@ -198,6 +263,11 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))}
+            {recommendedBooks.length === 0 && (
+              <div className="md:col-span-3 bg-card rounded-xl p-5 shadow-card border border-border text-sm text-muted-foreground">
+                No recommendations available yet.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -225,6 +295,31 @@ export default function DashboardPage() {
                 <Line type="monotone" dataKey="booksIssued" name="Books Issued" stroke="#0ea5e9" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="overdueBooks" name="Overdue Books" stroke="#dc2626" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="totalUsers" name="Total Users" stroke="#7c3aed" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {!isStudent && user.role === "admin" && (
+        <div className="bg-card rounded-xl shadow-card border border-border p-5 mb-6">
+          <h2 className="font-semibold text-lg text-foreground mb-6">Monthly Library Analytics (Last 12 Months)</h2>
+          <div className="h-[320px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyAnalyticsData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.25)" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="rgba(128,128,128,0.6)" />
+                <YAxis tick={{ fontSize: 12 }} stroke="rgba(128,128,128,0.6)" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "0.5rem",
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="issues" name="Books Issued" stroke="#0ea5e9" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="returns" name="Books Returned" stroke="#16a34a" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { BookCopy, Search, Plus, X, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { IssuedBook } from "@/lib/types";
-import { fetchIssuedBooks, fetchBooks, issueBook } from "@/lib/supabaseService";
+import { fetchIssuedBooks, fetchBooks, fetchProfile, issueBook } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 
 export default function IssueBookPage() {
@@ -11,7 +11,7 @@ export default function IssueBookPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ bookNumber: "", isbn: "", studentName: "", studentId: "" });
+  const [form, setForm] = useState({ bookNumber: "", studentId: "" });
 
   const loadIssues = async () => {
     try {
@@ -32,18 +32,22 @@ export default function IssueBookPage() {
   );
 
   const handleIssue = async () => {
-    if (!form.bookNumber || !form.studentName || !form.studentId) return;
+    if (!form.bookNumber || !form.studentId) return;
     setSaving(true);
     try {
       const books = await fetchBooks();
-      const book = books.find(b => b.book_number === form.bookNumber || b.isbn === form.isbn);
+      const book = books.find(b => b.book_number === form.bookNumber);
+
+      const profile = await fetchProfile(form.studentId);
+      const resolvedStudentName = profile?.name?.trim() || `Student (${form.studentId})`;
+
       const today = new Date();
       const due = new Date(today);
       due.setDate(due.getDate() + 14);
       await issueBook({
         book_id: book?.id || "",
         book_title: book?.title || `Book #${form.bookNumber}`,
-        student_name: form.studentName,
+        student_name: resolvedStudentName,
         student_id: form.studentId,
         issue_date: today.toISOString().split("T")[0],
         due_date: due.toISOString().split("T")[0],
@@ -51,7 +55,7 @@ export default function IssueBookPage() {
       });
       toast.success("Book issued successfully");
       setModalOpen(false);
-      setForm({ bookNumber: "", isbn: "", studentName: "", studentId: "" });
+      setForm({ bookNumber: "", studentId: "" });
       await loadIssues();
     } catch {
       toast.error("Failed to issue book");
@@ -182,17 +186,6 @@ export default function IssueBookPage() {
                 <label className="block text-sm font-medium text-foreground mb-1">Book Number</label>
                 <input value={form.bookNumber} onChange={e => setForm({ ...form, bookNumber: e.target.value })}
                   placeholder="Enter book number"
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">ISBN No</label>
-                <input value={form.isbn} onChange={e => setForm({ ...form, isbn: e.target.value })}
-                  placeholder="Enter ISBN number"
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Student Name</label>
-                <input value={form.studentName} onChange={e => setForm({ ...form, studentName: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
               </div>
               <div>
