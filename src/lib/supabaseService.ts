@@ -66,9 +66,10 @@ export async function bulkAddBooks(books: Partial<Book>[]): Promise<BulkUploadRe
         } catch (error) {
             // If batch insert fails, log the error for all valid books
             for (let i = 0; i < validBooks.length; i++) {
+                const book = validBooks[i] as Record<string, unknown>;
                 errors.push({
                     row: validBookRows[i],
-                    bookNumber: (validBooks[i] as any).book_number || "N/A",
+                    bookNumber: (book.book_number as string) || "N/A",
                     error: getErrorMessage(error, "Failed to insert batch"),
                 });
             }
@@ -131,7 +132,7 @@ export function parseBooksCsv(csvText: string): Partial<Book>[] {
         if (!line) continue;
 
         const values = parseCSVRow(line);
-        const book: Partial<Book> = {};
+        const book: Record<string, unknown> = {};
 
         // Map values to headers correctly
         for (let headerIdx = 0; headerIdx < rawHeaders.length; headerIdx++) {
@@ -143,18 +144,18 @@ export function parseBooksCsv(csvText: string): Partial<Book>[] {
 
             // Set empty values to null to allow partial records
             if (!value) {
-                (book as any)[header] = null;
+                book[header] = null;
             } else if (["available", "total", "price", "year_of_publication"].includes(header)) {
                 // For numeric fields, parse to number or null if invalid
                 const parsed = parseInt(value);
-                (book as any)[header] = isNaN(parsed) ? null : parsed;
+                book[header] = isNaN(parsed) ? null : parsed;
             } else {
                 // For text fields, keep the value
-                (book as any)[header] = value;
+                book[header] = value;
             }
         }
 
-        books.push(book);
+        books.push(book as Partial<Book>);
     }
 
     return books;
