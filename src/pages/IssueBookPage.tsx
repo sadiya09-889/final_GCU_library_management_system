@@ -183,14 +183,14 @@ export default function IssueBookPage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Book Number</label>
-                <input value={form.bookNumber} onChange={e => setForm({ ...form, bookNumber: e.target.value })}
-                  placeholder="Enter book number"
+                <label className="block text-sm font-medium text-foreground mb-1">Student ID</label>
+                <input value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Student ID</label>
-                <input value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })}
+                <label className="block text-sm font-medium text-foreground mb-1">Book Number</label>
+                <input value={form.bookNumber} onChange={e => setForm({ ...form, bookNumber: e.target.value })}
+                  placeholder="Enter book number"
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
               </div>
             </div>
