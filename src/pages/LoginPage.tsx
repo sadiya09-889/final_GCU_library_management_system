@@ -107,15 +107,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 p-4 rounded-lg bg-muted border border-border">
-            <p className="text-xs font-medium text-muted-foreground mb-2">Demo Credentials</p>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p><span className="font-medium text-foreground">Admin:</span> admin@gcu.edu.in / admin123</p>
-              <p><span className="font-medium text-foreground">Librarian:</span> librarian@gcu.edu.in / lib123</p>
-            </div>
-          </div>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          <p className="mt-8 text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
             <Link to="/signup" className="font-medium text-primary hover:underline">
               Sign Up

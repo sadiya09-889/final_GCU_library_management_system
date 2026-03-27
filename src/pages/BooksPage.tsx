@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import type { Book } from "@/lib/types";
 import { fetchBooks, addBook, updateBook, deleteBook } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
+import UploadExcelModal from "@/components/UploadExcelModal";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -32,6 +33,7 @@ export default function BooksPage() {
   const [yearFilter, setYearFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All");
   const [modalOpen, setModalOpen] = useState(false);
+  const [uploadExcelOpen, setUploadExcelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState<string | null>(null);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [saving, setSaving] = useState(false);
@@ -259,6 +261,10 @@ export default function BooksPage() {
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border bg-card font-semibold text-sm text-foreground hover:bg-muted transition-colors">
               <Download className="h-4 w-4" /> Download Excel
             </button>
+            <button onClick={() => setUploadExcelOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border bg-card font-semibold text-sm text-foreground hover:bg-muted transition-colors">
+              <Upload className="h-4 w-4" /> Upload Excel
+            </button>
             <button onClick={openAdd}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
               <Plus className="h-4 w-4" /> Add Book
@@ -429,6 +435,16 @@ export default function BooksPage() {
           </div>
         </div>
       )}
+
+      {/* Upload Excel Modal */}
+      <UploadExcelModal
+        isOpen={uploadExcelOpen}
+        onClose={() => setUploadExcelOpen(false)}
+        onSuccess={() => {
+          setUploadExcelOpen(false);
+          loadBooks();
+        }}
+      />
     </div>
   );
 }
