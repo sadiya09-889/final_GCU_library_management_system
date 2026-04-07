@@ -1,4 +1,5 @@
 import { BarChart3, Download, FileText, PieChart, TrendingUp } from "lucide-react";
+import { useState } from "react";
 
 // Mock summary data
 const summaryData = {
@@ -92,6 +93,7 @@ function getDonutSlices() {
 }
 
 export default function ReportsPage() {
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const linePath = getLinePath();
   const areaPath = getAreaPath();
   const points = monthlyIssues.map((d, i) => getPoint(i, d.issues));
@@ -116,20 +118,85 @@ export default function ReportsPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-card rounded-xl p-5 shadow-card border border-border">
-          <BarChart3 className="h-5 w-5 text-secondary mb-2" />
-          <p className="text-2xl font-semibold text-foreground">{summaryData.totalCollection}</p>
-          <p className="text-muted-foreground text-xs">Total Collection</p>
+        <div>
+          <div 
+            onClick={() => setExpandedCard(expandedCard === "totalCollection" ? null : "totalCollection")}
+            className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow cursor-pointer">
+            <BarChart3 className="h-5 w-5 text-secondary mb-2" />
+            <p className="text-2xl font-semibold text-foreground">{summaryData.totalCollection}</p>
+            <p className="text-muted-foreground text-xs">Total Collection</p>
+          </div>
+          
+          {expandedCard === "totalCollection" && (
+            <div className="mt-3 bg-card rounded-xl p-5 shadow-card border border-border">
+              <h3 className="font-semibold text-foreground mb-3">Collection Breakdown</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {categoryData.map(cat => (
+                  <div key={cat.category} className="text-sm p-2 bg-muted rounded flex justify-between">
+                    <span className="text-foreground">{cat.category}</span>
+                    <span className="font-semibold text-secondary">{cat.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <div className="bg-card rounded-xl p-5 shadow-card border border-border">
-          <TrendingUp className="h-5 w-5 text-accent mb-2" />
-          <p className="text-2xl font-semibold text-foreground">{summaryData.currentlyIssued}</p>
-          <p className="text-muted-foreground text-xs">Currently Issued</p>
+
+        <div>
+          <div 
+            onClick={() => setExpandedCard(expandedCard === "currentlyIssued" ? null : "currentlyIssued")}
+            className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow cursor-pointer">
+            <TrendingUp className="h-5 w-5 text-accent mb-2" />
+            <p className="text-2xl font-semibold text-foreground">{summaryData.currentlyIssued}</p>
+            <p className="text-muted-foreground text-xs">Currently Issued</p>
+          </div>
+          
+          {expandedCard === "currentlyIssued" && (
+            <div className="mt-3 bg-card rounded-xl p-5 shadow-card border border-border">
+              <h3 className="font-semibold text-foreground mb-3">Monthly Trend</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {monthlyIssues.map(month => (
+                  <div key={month.month} className="text-sm p-2 bg-muted rounded flex justify-between items-center">
+                    <span className="text-foreground">{month.month}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 bg-accent rounded-full" style={{ width: `${(month.issues / maxIssues) * 100}px` }} />
+                      <span className="font-semibold text-accent">{month.issues}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <div className="bg-card rounded-xl p-5 shadow-card border border-border">
-          <PieChart className="h-5 w-5 text-destructive mb-2" />
-          <p className="text-2xl font-semibold text-foreground">{summaryData.overdueBooks}</p>
-          <p className="text-muted-foreground text-xs">Overdue Books</p>
+
+        <div>
+          <div 
+            onClick={() => setExpandedCard(expandedCard === "overdueBooks" ? null : "overdueBooks")}
+            className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow cursor-pointer">
+            <PieChart className="h-5 w-5 text-destructive mb-2" />
+            <p className="text-2xl font-semibold text-foreground">{summaryData.overdueBooks}</p>
+            <p className="text-muted-foreground text-xs">Overdue Books</p>
+          </div>
+          
+          {expandedCard === "overdueBooks" && (
+            <div className="mt-3 bg-card rounded-xl p-5 shadow-card border border-border">
+              <h3 className="font-semibold text-foreground mb-3">Overdue Details</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                <div className="text-sm p-2 bg-destructive/10 rounded border border-destructive/20">
+                  <p className="font-medium text-foreground">Critical Overdue</p>
+                  <p className="text-xs text-destructive">Books overdue by 7+ days</p>
+                </div>
+                <div className="text-sm p-2 bg-destructive/10 rounded border border-destructive/20">
+                  <p className="font-medium text-foreground">Moderate Overdue</p>
+                  <p className="text-xs text-destructive">Books overdue by 3-7 days</p>
+                </div>
+                <div className="text-sm p-2 bg-destructive/10 rounded border border-destructive/20">
+                  <p className="font-medium text-foreground">Minor Overdue</p>
+                  <p className="text-xs text-destructive">Books overdue by 1-3 days</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

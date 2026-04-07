@@ -183,7 +183,7 @@ export default function IssueBookPage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Student ID</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Reg No</label>
                 <input value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
               </div>

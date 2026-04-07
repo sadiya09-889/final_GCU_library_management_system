@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2 } from "lucide-react";
+import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks } from "@/lib/supabaseService";
+import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
 import type { Book, IssuedBook, UserProfile } from "@/lib/types";
 import {
@@ -25,6 +25,11 @@ export default function DashboardPage() {
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [issueModalOpen, setIssueModalOpen] = useState(false);
+  const [selectedBookForIssue, setSelectedBookForIssue] = useState<Book | null>(null);
+  const [issueForm, setIssueForm] = useState({ studentId: "" });
+  const [issuingSaving, setIssuingSaving] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadDashboardData = async () => {
@@ -81,6 +86,54 @@ export default function DashboardPage() {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/dashboard/opac?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
+  const openIssue = (book: Book) => {
+    if (book.available <= 0) {
+      alert("No copies available to issue");
+      return;
+    }
+    setSelectedBookForIssue(book);
+    setIssueForm({ studentId: "" });
+    setIssueModalOpen(true);
+  };
+
+  const handleIssueBook = async () => {
+    if (!issueForm.studentId.trim()) {
+      alert("Please enter Reg No");
+      return;
+    }
+    if (!selectedBookForIssue) return;
+
+    setIssuingSaving(true);
+    try {
+      const profile = await fetchProfile(issueForm.studentId);
+      const resolvedStudentName = profile?.name?.trim() || `Student (${issueForm.studentId})`;
+
+      const today = new Date();
+      const due = new Date(today);
+      due.setDate(due.getDate() + 14);
+
+      await issueBook({
+        book_id: selectedBookForIssue.id,
+        book_title: selectedBookForIssue.title,
+        student_name: resolvedStudentName,
+        student_id: issueForm.studentId,
+        issue_date: today.toISOString().split("T")[0],
+        due_date: due.toISOString().split("T")[0],
+        status: "issued",
+      });
+
+      alert(`Book issued successfully to ${resolvedStudentName}`);
+      setIssueModalOpen(false);
+      setSelectedBookForIssue(null);
+      setIssueForm({ studentId: "" });
+      await loadDashboardData();
+    } catch (error) {
+      alert("Failed to issue book");
+    } finally {
+      setIssuingSaving(false);
     }
   };
 
@@ -231,15 +284,199 @@ export default function DashboardPage() {
 
       <div className={`grid ${isStudent ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 lg:grid-cols-3"} gap-4 sm:gap-5 mb-8`}>
         {stats.map(s => (
-          <div key={s.label} className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <s.icon className={`h-5 w-5 ${s.color}`} />
+          <div key={s.label}>
+            <div 
+              onClick={() => setExpandedCard(expandedCard === s.label ? null : s.label)}
+              className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow cursor-pointer">
+              <div className="flex items-center justify-between mb-3">
+                <s.icon className={`h-5 w-5 ${s.color}`} />
+              </div>
+              <p className="text-3xl font-semibold text-foreground" style={{ fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
+              <p className="text-sm text-gray-600 mt-1">{s.label}</p>
             </div>
-            <p className="text-3xl font-semibold text-foreground" style={{ fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
-            <p className="text-sm text-gray-600 mt-1">{s.label}</p>
+            
+            {/* Expanded Details */}
+            {expandedCard === s.label && (
+              <div className="mt-3 bg-card rounded-xl p-5 shadow-card border border-border">
+                {isStudent ? (
+                  <>
+                    {s.label === "Books Issued" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Issued Books ({myActive.length})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {myActive.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No books issued</p>
+                          ) : (
+                            myActive.map(b => (
+                              <div key={b.id} className="text-sm p-2 bg-muted rounded">
+                                <p className="font-medium text-foreground">{b.book_title}</p>
+                                <p className="text-xs text-muted-foreground">Due: {b.due_date}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {s.label === "Upcoming Due" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Books Due Soon ({myUpcomingDue})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {myUpcomingDue === 0 ? (
+                            <p className="text-sm text-muted-foreground">No books due in the next 3 days</p>
+                          ) : (
+                            myIssued.filter(i => {
+                              if (i.status !== "issued") return false;
+                              const due = new Date(i.due_date);
+                              const today = new Date();
+                              const diff = (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+                              return diff > 0 && diff <= 3;
+                            }).map(b => (
+                              <div key={b.id} className="text-sm p-2 bg-muted rounded">
+                                <p className="font-medium text-foreground">{b.book_title}</p>
+                                <p className="text-xs text-muted-foreground">Due: {b.due_date}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {s.label === "Overdue" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Overdue Books ({myOverdue})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {myOverdue === 0 ? (
+                            <p className="text-sm text-muted-foreground">No overdue books</p>
+                          ) : (
+                            myIssued.filter(i => i.status === "overdue").map(b => (
+                              <div key={b.id} className="text-sm p-2 bg-destructive/10 rounded border border-destructive/20">
+                                <p className="font-medium text-foreground">{b.book_title}</p>
+                                <p className="text-xs text-destructive">Due: {b.due_date}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {s.label === "Total Books" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Books by Category</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {books.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No books</p>
+                          ) : (
+                            Object.entries(
+                              books.reduce((acc, b) => {
+                                acc[b.category] = (acc[b.category] || 0) + b.total;
+                                return acc;
+                              }, {} as Record<string, number>)
+                            ).map(([category, count]) => (
+                              <div key={category} className="text-sm p-2 bg-muted rounded flex justify-between">
+                                <span className="text-foreground">{category}</span>
+                                <span className="font-semibold text-secondary">{count}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {s.label === "Books Available" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Available Books Breakdown</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {books.filter(b => b.available > 0).length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No available books</p>
+                          ) : (
+                            books.filter(b => b.available > 0).map(b => (
+                              <div key={b.id} className="text-sm p-2 bg-accent/10 rounded">
+                                <p className="font-medium text-foreground">{b.title}</p>
+                                <p className="text-xs text-muted-foreground">Available: {b.available} / {b.total}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {s.label === "Books Issued" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Currently Issued Books ({issued})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {issued === 0 ? (
+                            <p className="text-sm text-muted-foreground">No issued books</p>
+                          ) : (
+                            issuedBooks.filter(i => i.status === "issued").map(b => (
+                              <div key={b.id} className="text-sm p-2 bg-muted rounded">
+                                <p className="font-medium text-foreground">{b.book_title}</p>
+                                <p className="text-xs text-muted-foreground">{b.student_name} - Due: {b.due_date}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {s.label === "Overdue Books" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Overdue Books ({overdue})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {overdue === 0 ? (
+                            <p className="text-sm text-muted-foreground">No overdue books</p>
+                          ) : (
+                            issuedBooks.filter(i => i.status === "overdue").map(b => (
+                              <div key={b.id} className="text-sm p-2 bg-destructive/10 rounded border border-destructive/20">
+                                <p className="font-medium text-foreground">{b.book_title}</p>
+                                <p className="text-xs text-destructive">{b.student_name} - Due: {b.due_date}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {s.label === "Total Users" && (
+                      <div>
+                        <h3 className="font-semibold text-foreground mb-3">Registered Users ({users.length})</h3>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {users.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No registered users</p>
+                          ) : (
+                            users.map(u => (
+                              <div key={u.id} className="text-sm p-2 bg-muted rounded">
+                                <p className="font-medium text-foreground">{u.name}</p>
+                                <p className="text-xs text-muted-foreground">{u.email}</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {/* Quick Issue Section - Admin only */}
+      {!isStudent && (
+        <div className="mb-8 p-5 bg-card rounded-xl shadow-card border border-border">
+          <h2 className="font-semibold text-lg text-foreground mb-4">Quick Issue Book</h2>
+          <div className="grid sm:grid-cols-4 gap-4">
+            {books.filter(b => b.available > 0).slice(0, 4).map(b => (
+              <button
+                key={b.id}
+                onClick={() => openIssue(b)}
+                className="p-3 rounded-lg border border-border hover:border-secondary hover:bg-secondary/5 transition-colors text-left"
+              >
+                <p className="font-medium text-foreground text-sm truncate">{b.title}</p>
+                <p className="text-xs text-muted-foreground mt-1">{b.author}</p>
+                <p className="text-xs text-accent mt-2">{b.available} copies available</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recommended Books - Student only */}
       {isStudent && (
@@ -326,6 +563,66 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Issue Book Modal */}
+      {issueModalOpen && selectedBookForIssue && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-foreground/20" onClick={() => setIssueModalOpen(false)} />
+          <div className="relative bg-card rounded-xl shadow-elevated w-full max-w-lg p-6 border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Send className="h-5 w-5 text-secondary" />
+                <h2 className="font-semibold text-xl text-foreground">Issue Book</h2>
+              </div>
+              <button onClick={() => setIssueModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            
+            {/* Book Details */}
+            <div className="mb-6 p-4 bg-muted rounded-lg">
+              <h3 className="font-semibold text-foreground mb-2">{selectedBookForIssue.title}</h3>
+              <p className="text-sm text-muted-foreground mb-1">
+                <span className="font-medium">Author:</span> {selectedBookForIssue.author}
+              </p>
+              <p className="text-sm text-muted-foreground mb-1">
+                <span className="font-medium">Book Number:</span> {selectedBookForIssue.book_number}
+              </p>
+              <p className="text-sm text-muted-foreground mb-1">
+                <span className="font-medium">Category:</span> {selectedBookForIssue.category}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">Available Copies:</span> {selectedBookForIssue.available}
+              </p>
+            </div>
+
+            {/* Form */}
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No</label>
+                <input 
+                  value={issueForm.studentId} 
+                  onChange={e => setIssueForm({ studentId: e.target.value })}
+                  placeholder="Enter student registration number"
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" 
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setIssueModalOpen(false)} 
+                className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button 
+                onClick={handleIssueBook} 
+                disabled={issuingSaving}
+                className="px-5 py-2 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-60">
+                {issuingSaving ? "Issuing..." : "Issue Book"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

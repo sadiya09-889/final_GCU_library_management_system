@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload, Send } from "lucide-react";
 import { toast } from "sonner";
 import type { Book } from "@/lib/types";
-import { fetchBooks, addBook, updateBook, deleteBook } from "@/lib/supabaseService";
+import { fetchBooks, addBook, updateBook, deleteBook, issueBook, fetchProfile } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 import UploadExcelModal from "@/components/UploadExcelModal";
 
@@ -39,6 +39,10 @@ export default function BooksPage() {
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const perPage = 6;
+  const [issueModalOpen, setIssueModalOpen] = useState(false);
+  const [selectedBookForIssue, setSelectedBookForIssue] = useState<Book | null>(null);
+  const [issueForm, setIssueForm] = useState({ studentId: "" });
+  const [issuingSaving, setIssuingSaving] = useState(false);
 
   const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
   const canEdit = user.role === "admin" || user.role === "librarian";
@@ -154,6 +158,54 @@ export default function BooksPage() {
       toast.error(getErrorMessage(error, "Failed to save book"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openIssue = (b: Book) => {
+    if (b.available <= 0) {
+      toast.error("No copies available to issue");
+      return;
+    }
+    setSelectedBookForIssue(b);
+    setIssueForm({ studentId: "" });
+    setIssueModalOpen(true);
+  };
+
+  const handleIssueBook = async () => {
+    if (!issueForm.studentId.trim()) {
+      toast.error("Please enter Reg No");
+      return;
+    }
+    if (!selectedBookForIssue) return;
+
+    setIssuingSaving(true);
+    try {
+      const profile = await fetchProfile(issueForm.studentId);
+      const resolvedStudentName = profile?.name?.trim() || `Student (${issueForm.studentId})`;
+
+      const today = new Date();
+      const due = new Date(today);
+      due.setDate(due.getDate() + 14);
+
+      await issueBook({
+        book_id: selectedBookForIssue.id,
+        book_title: selectedBookForIssue.title,
+        student_name: resolvedStudentName,
+        student_id: issueForm.studentId,
+        issue_date: today.toISOString().split("T")[0],
+        due_date: due.toISOString().split("T")[0],
+        status: "issued",
+      });
+
+      toast.success(`Book issued successfully to ${resolvedStudentName}`);
+      setIssueModalOpen(false);
+      setSelectedBookForIssue(null);
+      setIssueForm({ studentId: "" });
+      await loadBooks();
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to issue book"));
+    } finally {
+      setIssuingSaving(false);
     }
   };
 
@@ -296,10 +348,13 @@ export default function BooksPage() {
               <BookOpen className="h-5 w-5 text-secondary flex-shrink-0 mt-0.5" />
               {canEdit && (
                 <div className="flex gap-1">
-                  <button onClick={() => openEdit(b)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                  <button onClick={() => openIssue(b)} title="Issue Book" className="p-1.5 rounded-md hover:bg-secondary/10 text-muted-foreground hover:text-secondary transition-colors">
+                    <Send className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => openEdit(b)} title="Edit Book" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                     <Edit2 className="h-4 w-4" />
                   </button>
-                  <button onClick={() => setDeleteOpen(b.id)} className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                  <button onClick={() => setDeleteOpen(b.id)} title="Delete Book" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -335,6 +390,67 @@ export default function BooksPage() {
               {i + 1}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Issue Book Modal */}
+      {issueModalOpen && selectedBookForIssue && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-foreground/20" onClick={() => setIssueModalOpen(false)} />
+          <div className="relative bg-card rounded-xl shadow-elevated w-full max-w-lg p-6 border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Send className="h-5 w-5 text-secondary" />
+                <h2 className="font-semibold text-xl text-foreground">Issue Book</h2>
+              </div>
+              <button onClick={() => setIssueModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+            </div>
+            
+            {/* Book Details */}
+            <div className="mb-6 p-4 bg-muted rounded-lg">
+              <h3 className="font-semibold text-foreground mb-2">{selectedBookForIssue.title}</h3>
+              <p className="text-sm text-muted-foreground mb-1">
+                <span className="font-medium">Author:</span> {selectedBookForIssue.author}
+              </p>
+              <p className="text-sm text-muted-foreground mb-1">
+                <span className="font-medium">Book Number:</span> {selectedBookForIssue.book_number}
+              </p>
+              <p className="text-sm text-muted-foreground mb-1">
+                <span className="font-medium">Category:</span> {selectedBookForIssue.category}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">Available Copies:</span> {selectedBookForIssue.available}
+              </p>
+            </div>
+
+            {/* Form */}
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No</label>
+                <input 
+                  value={issueForm.studentId} 
+                  onChange={e => setIssueForm({ studentId: e.target.value })}
+                  placeholder="Enter student registration number"
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" 
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setIssueModalOpen(false)} 
+                className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button 
+                onClick={handleIssueBook} 
+                disabled={issuingSaving}
+                className="px-5 py-2 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-60">
+                {issuingSaving ? "Issuing..." : "Issue Book"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -435,16 +551,6 @@ export default function BooksPage() {
           </div>
         </div>
       )}
-
-      {/* Upload Excel Modal */}
-      <UploadExcelModal
-        isOpen={uploadExcelOpen}
-        onClose={() => setUploadExcelOpen(false)}
-        onSuccess={() => {
-          setUploadExcelOpen(false);
-          loadBooks();
-        }}
-      />
     </div>
   );
 }
