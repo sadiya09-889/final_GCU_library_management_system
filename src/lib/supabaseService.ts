@@ -356,28 +356,152 @@ export async function checkAndUpdateOverdueBooks(): Promise<void> {
         .in("id", ids);
 }
 
+async function fetchBookInventory(bookId: string) {
+    const { data, error } = await supabase
+        .from("books")
+        .select("id, available, total")
+        .eq("id", bookId)
+        .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new Error("Book not found");
+
+    const available = Math.max(0, sanitizeInteger(data.available, 0));
+    const total = Math.max(Math.max(0, sanitizeInteger(data.total, 0)), available);
+
+    return { available, total };
+}
+
+async function updateBookAvailableOptimistically(bookId: string, expectedAvailable: number, nextAvailable: number) {
+    const { data, error } = await supabase
+        .from("books")
+        .update({ available: nextAvailable })
+        .eq("id", bookId)
+        .eq("available", expectedAvailable)
+        .select("id");
+
+    if (error) throw error;
+    return (data ?? []).length > 0;
+}
+
 export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBook> {
+    const bookId = typeof issue.book_id === "string" ? issue.book_id.trim() : "";
+    if (!bookId) throw new Error("Book is required to issue");
+
+    let previousAvailable = 0;
+    let nextAvailable = 0;
+    let decremented = false;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const { available } = await fetchBookInventory(bookId);
+        if (available <= 0) throw new Error("No copies available to issue");
+
+        previousAvailable = available;
+        nextAvailable = available - 1;
+
+        const updated = await updateBookAvailableOptimistically(bookId, previousAvailable, nextAvailable);
+        if (updated) {
+            decremented = true;
+            break;
+        }
+    }
+
+    if (!decremented) throw new Error("Book availability changed. Please try again.");
+
     const { data, error } = await supabase
         .from("issued_books")
         .insert(issue)
         .select()
         .single();
-    if (error) throw error;
+
+    if (error) {
+        // Best-effort rollback of availability decrement.
+        try {
+            await supabase
+                .from("books")
+                .update({ available: previousAvailable })
+                .eq("id", bookId)
+                .eq("available", nextAvailable);
+        } catch {
+            // Ignore rollback failures.
+        }
+
+        throw error;
+    }
+
     return data;
 }
 
 export async function returnBook(id: string): Promise<IssuedBook> {
-    const { data, error } = await supabase
+    const { data: existingIssue, error: existingError } = await supabase
+        .from("issued_books")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existingIssue) throw new Error("Issued record not found");
+    if (existingIssue.status === "returned") return existingIssue;
+
+    const bookId = typeof existingIssue.book_id === "string" ? existingIssue.book_id.trim() : "";
+    const returnDate = new Date().toISOString().split("T")[0];
+    const previousStatus = existingIssue.status;
+
+    let previousAvailable = 0;
+    let nextAvailable = 0;
+    let incremented = !bookId;
+
+    if (bookId) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const inventory = await fetchBookInventory(bookId);
+            previousAvailable = inventory.available;
+            const computedNext = previousAvailable + 1;
+            nextAvailable = inventory.total > 0 ? Math.min(computedNext, inventory.total) : computedNext;
+
+            if (nextAvailable === previousAvailable) {
+                incremented = true;
+                break;
+            }
+
+            const updated = await updateBookAvailableOptimistically(bookId, previousAvailable, nextAvailable);
+            if (updated) {
+                incremented = true;
+                break;
+            }
+        }
+
+        if (!incremented) throw new Error("Unable to update book availability. Please try again.");
+    }
+
+    const { data: returnedIssue, error } = await supabase
         .from("issued_books")
         .update({
             status: "returned",
-            return_date: new Date().toISOString().split("T")[0],
+            return_date: returnDate,
         })
         .eq("id", id)
+        .eq("status", previousStatus)
         .select()
         .single();
-    if (error) throw error;
-    return data;
+
+    if (error) {
+        if (bookId && incremented && nextAvailable !== previousAvailable) {
+            // Best-effort rollback of availability increment.
+            try {
+                await supabase
+                    .from("books")
+                    .update({ available: previousAvailable })
+                    .eq("id", bookId)
+                    .eq("available", nextAvailable);
+            } catch {
+                // Ignore rollback failures.
+            }
+        }
+
+        throw error;
+    }
+
+    return returnedIssue;
 }
 
 // ─── Profiles ───────────────────────────────────────────

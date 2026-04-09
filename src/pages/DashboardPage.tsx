@@ -40,11 +40,13 @@ function getBookTotalCount(book: Book) {
 }
 
 function getBookAvailableCount(book: Book) {
+  const total = getBookTotalCount(book);
+
   if (isMissingValue(book.available)) {
-    return getBookTotalCount(book);
+    return total;
   }
 
-  return Math.max(0, safeNumber(book.available, 0));
+  return Math.min(Math.max(0, safeNumber(book.available, 0)), total);
 }
 
 function isBookAvailable(book: Book) {
@@ -222,8 +224,8 @@ export default function DashboardPage() {
     );
   }
 
-  const totalBooks = books.length;
-  const available = books.filter(isBookAvailable).length;
+  const totalBooks = books.reduce((sum, b) => sum + getBookTotalCount(b), 0);
+  const available = books.reduce((sum, b) => sum + getBookAvailableCount(b), 0);
   const issued = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue").length;
   const overdue = issuedBooks.filter(i => i.status === "overdue").length;
 
@@ -286,8 +288,8 @@ export default function DashboardPage() {
       return createdDate <= day;
     });
 
-    const totalBooksAsOfDay = booksAsOfDay.length;
-    const availableBooksAsOfDay = booksAsOfDay.filter((b) => isBookAvailable(b)).length;
+    const totalBooksAsOfDay = booksAsOfDay.reduce((sum, b) => sum + getBookTotalCount(b), 0);
+    const availableBooksAsOfDay = booksAsOfDay.reduce((sum, b) => sum + getBookAvailableCount(b), 0);
 
     const activeIssuesAsOfDay = issuedBooks.filter((i) => {
       const issueDate = toDateOnly(i.issue_date);
@@ -463,7 +465,7 @@ export default function DashboardPage() {
                             Object.entries(
                               books.reduce((acc, b) => {
                                 const category = safeText(b.category, "Uncategorized");
-                                acc[category] = (acc[category] || 0) + 1;
+                                acc[category] = (acc[category] || 0) + getBookTotalCount(b);
                                 return acc;
                               }, {} as Record<string, number>)
                             ).map(([category, count]) => (
