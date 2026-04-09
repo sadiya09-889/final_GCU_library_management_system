@@ -1,9 +1,23 @@
 import { useState, useEffect } from "react";
-import { User, Mail, Shield, Calendar, Building2, Phone, Edit2, Save, X } from "lucide-react";
+import { User, Mail, Shield, Calendar, Building2, Phone, Edit2, Save, X, Hash } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchProfile, updateProfile } from "@/lib/supabaseService";
 import { profileUpdateSchema, type UserProfile, type ProfileUpdateData } from "@/lib/types";
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+
+  return fallback;
+}
+
+function getMetadataValue(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -12,7 +26,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     department: "",
-    contact_number: ""
+    contact_number: "",
+    reg_no: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -37,10 +52,11 @@ export default function ProfilePage() {
               // Update profile data if changed externally
               const updatedProfile = payload.new as UserProfile;
               setProfile(updatedProfile);
-              setFormData({
+              setFormData((prev) => ({
                 department: updatedProfile.department || "",
-                contact_number: updatedProfile.contact_number || ""
-              });
+                contact_number: updatedProfile.contact_number || prev.contact_number,
+                reg_no: updatedProfile.reg_no || prev.reg_no,
+              }));
               // Only show toast if user is not currently editing (to avoid conflicts)
               if (!editing) {
                 toast.info("Profile updated");
@@ -65,12 +81,22 @@ export default function ProfilePage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        const metadataContact = getMetadataValue(user.user_metadata?.contact_number);
+        const metadataRegNo = getMetadataValue(user.user_metadata?.reg_no);
+
         const userProfile = await fetchProfile(user.id);
         if (userProfile) {
-          setProfile(userProfile);
+          const mergedProfile: UserProfile = {
+            ...userProfile,
+            contact_number: userProfile.contact_number || metadataContact,
+            reg_no: userProfile.reg_no || metadataRegNo,
+          };
+
+          setProfile(mergedProfile);
           setFormData({
-            department: userProfile.department || "",
-            contact_number: userProfile.contact_number || ""
+            department: mergedProfile.department || "",
+            contact_number: mergedProfile.contact_number || "",
+            reg_no: mergedProfile.reg_no || "",
           });
         } else {
           // If no profile exists in database, create a fallback from auth data
@@ -81,13 +107,15 @@ export default function ProfilePage() {
             email: role === "librarian" || role === "admin" ? "Murali.gcu.edu.in" : (user.email || ""),
             role,
             department: role === "admin" ? "Administration" : role === "librarian" ? "Library" : "Computer Science",
-            contact_number: "",
+            contact_number: metadataContact,
+            reg_no: metadataRegNo,
             join_date: "2023-08-01"
           };
           setProfile(fallbackProfile);
           setFormData({
             department: fallbackProfile.department || "",
-            contact_number: fallbackProfile.contact_number || ""
+            contact_number: fallbackProfile.contact_number || "",
+            reg_no: fallbackProfile.reg_no || "",
           });
         }
       }
@@ -111,7 +139,8 @@ export default function ProfilePage() {
     if (profile) {
       setFormData({
         department: profile.department || "",
-        contact_number: profile.contact_number || ""
+        contact_number: profile.contact_number || "",
+        reg_no: profile.reg_no || "",
       });
     }
   };
@@ -141,7 +170,7 @@ export default function ProfilePage() {
       toast.success("Profile updated successfully");
     } catch (error) {
       console.error("Error updating profile:", error);
-      toast.error("Failed to update profile");
+      toast.error(getErrorMessage(error, "Failed to update profile"));
     } finally {
       setSaving(false);
     }
@@ -246,6 +275,32 @@ export default function ProfilePage() {
               ) : (
                 <p className="text-sm font-medium text-foreground capitalize">
                   {formData.department || "Not specified"}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Editable contact number field */}
+          <div className="flex items-center gap-3 py-3 border-b border-border">
+            <Hash className="h-5 w-5 text-secondary flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground">Reg No</p>
+              {editing ? (
+                <div>
+                  <input
+                    type="text"
+                    value={formData.reg_no}
+                    onChange={(e) => handleInputChange("reg_no", e.target.value)}
+                    className="text-sm font-medium text-foreground bg-background border border-border rounded px-2 py-1 mt-1 w-full focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="Enter registration number"
+                  />
+                  {errors.reg_no && (
+                    <p className="text-xs text-destructive mt-1">{errors.reg_no}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm font-medium text-foreground">
+                  {formData.reg_no || "Not specified"}
                 </p>
               )}
             </div>

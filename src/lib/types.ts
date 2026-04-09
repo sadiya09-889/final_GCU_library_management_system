@@ -51,16 +51,21 @@ export interface UserProfile {
     role: "admin" | "librarian" | "student";
     department?: string;
     contact_number?: string;
+    reg_no?: string;
     join_date: string;
 }
 
 // Validation schema for profile updates
 export const profileUpdateSchema = z.object({
-    department: z.string().min(1, "Department is required").max(100, "Department must be less than 100 characters"),
+    department: z.string().trim().max(100, "Department must be less than 100 characters"),
     contact_number: z.string()
-        .min(1, "Contact number is required")
-        .regex(/^[+]?[\d\s\-\(\)]{10,15}$/, "Please enter a valid phone number")
+        .trim()
         .max(15, "Contact number must be less than 15 characters")
+        .refine((value) => value === "" || /^[+]?[\d\s\-\(\)]{10,15}$/.test(value), "Please enter a valid phone number"),
+    reg_no: z.string()
+        .trim()
+        .max(30, "Reg No must be less than 30 characters")
+        .refine((value) => value === "" || /^[A-Za-z0-9\-\/]+$/.test(value), "Reg No can contain letters, numbers, - and /")
 });
 
 export type ProfileUpdateData = z.infer<typeof profileUpdateSchema>;

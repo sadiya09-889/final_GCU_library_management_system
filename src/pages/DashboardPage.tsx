@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
 import type { Book, IssuedBook, UserProfile } from "@/lib/types";
+import { toast } from "sonner";
 import {
   ResponsiveContainer,
   LineChart,
@@ -15,11 +16,56 @@ import {
   Legend,
 } from "recharts";
 
+function safeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function safeText(value: unknown, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed || fallback;
+}
+
+function isMissingValue(value: unknown) {
+  return value === null || value === undefined || value === "";
+}
+
+function getBookTotalCount(book: Book) {
+  if (isMissingValue(book.total)) {
+    return 1;
+  }
+
+  return Math.max(0, safeNumber(book.total, 0));
+}
+
+function getBookAvailableCount(book: Book) {
+  if (isMissingValue(book.available)) {
+    return getBookTotalCount(book);
+  }
+
+  return Math.max(0, safeNumber(book.available, 0));
+}
+
+function isBookAvailable(book: Book) {
+  return getBookAvailableCount(book) > 0;
+}
+
+function toDateOnly(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export default function DashboardPage() {
   const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const isStudent = user.role === "student";
+  const isAdmin = user.role === "admin";
+  const canViewUsersAnalytics = isAdmin;
 
   const [books, setBooks] = useState<Book[]>([]);
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
@@ -31,16 +77,47 @@ export default function DashboardPage() {
   const [issueForm, setIssueForm] = useState({ studentId: "" });
   const [issuingSaving, setIssuingSaving] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadErrorShownRef = useRef(false);
 
   const loadDashboardData = async () => {
     try {
-      await checkAndUpdateOverdueBooks();
-      const [b, ib, u] = await Promise.all([fetchBooks(), fetchIssuedBooks(), fetchProfiles()]);
-      setBooks(b);
-      setIssuedBooks(ib);
-      setUsers(u);
-    } catch {
-      // Keep existing UX: fail silently and render available data.
+      try {
+        await checkAndUpdateOverdueBooks();
+      } catch {
+        // Ignore overdue sync errors and continue with dashboard data fetch.
+      }
+
+      const [booksResult, issuedBooksResult, usersResult] = await Promise.allSettled([
+        fetchBooks(),
+        fetchIssuedBooks(),
+        canViewUsersAnalytics ? fetchProfiles() : Promise.resolve([] as UserProfile[]),
+      ]);
+
+      let anySuccess = false;
+
+      if (booksResult.status === "fulfilled") {
+        setBooks(booksResult.value);
+        anySuccess = true;
+      }
+
+      if (issuedBooksResult.status === "fulfilled") {
+        setIssuedBooks(issuedBooksResult.value);
+        anySuccess = true;
+      }
+
+      if (usersResult.status === "fulfilled") {
+        setUsers(usersResult.value);
+        anySuccess = true;
+      }
+
+      if (!anySuccess && !loadErrorShownRef.current) {
+        loadErrorShownRef.current = true;
+        toast.error("Unable to fetch dashboard analytics from Supabase");
+      }
+
+      if (anySuccess && loadErrorShownRef.current) {
+        loadErrorShownRef.current = false;
+      }
     } finally {
       setLoading(false);
     }
@@ -90,8 +167,8 @@ export default function DashboardPage() {
   };
 
   const openIssue = (book: Book) => {
-    if (book.available <= 0) {
-      alert("No copies available to issue");
+    if (getBookAvailableCount(book) <= 0) {
+      toast.error("No copies available to issue");
       return;
     }
     setSelectedBookForIssue(book);
@@ -101,7 +178,7 @@ export default function DashboardPage() {
 
   const handleIssueBook = async () => {
     if (!issueForm.studentId.trim()) {
-      alert("Please enter Reg No");
+      toast.error("Please enter Reg No");
       return;
     }
     if (!selectedBookForIssue) return;
@@ -117,7 +194,7 @@ export default function DashboardPage() {
 
       await issueBook({
         book_id: selectedBookForIssue.id,
-        book_title: selectedBookForIssue.title,
+        book_title: safeText(selectedBookForIssue.title, "Untitled Book"),
         student_name: resolvedStudentName,
         student_id: issueForm.studentId,
         issue_date: today.toISOString().split("T")[0],
@@ -125,13 +202,13 @@ export default function DashboardPage() {
         status: "issued",
       });
 
-      alert(`Book issued successfully to ${resolvedStudentName}`);
+      toast.success(`Book issued successfully to ${resolvedStudentName}`);
       setIssueModalOpen(false);
       setSelectedBookForIssue(null);
       setIssueForm({ studentId: "" });
       await loadDashboardData();
-    } catch (error) {
-      alert("Failed to issue book");
+    } catch {
+      toast.error("Failed to issue book");
     } finally {
       setIssuingSaving(false);
     }
@@ -145,18 +222,21 @@ export default function DashboardPage() {
     );
   }
 
-  const totalBooks = books.reduce((a, b) => a + b.total, 0);
-  const available = books.reduce((a, b) => a + b.available, 0);
-  const issued = issuedBooks.filter(i => i.status === "issued").length;
+  const totalBooks = books.length;
+  const available = books.filter(isBookAvailable).length;
+  const issued = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue").length;
   const overdue = issuedBooks.filter(i => i.status === "overdue").length;
 
-  const adminStats = [
+  const staffStats = [
     { label: "Total Books", value: totalBooks, icon: BookOpen, color: "text-secondary" },
     { label: "Books Available", value: available, icon: TrendingUp, color: "text-accent" },
     { label: "Books Issued", value: issued, icon: BookCopy, color: "text-secondary" },
     { label: "Overdue Books", value: overdue, icon: AlertTriangle, color: "text-destructive" },
-    { label: "Total Users", value: users.length, icon: Users, color: "text-secondary" },
   ];
+
+  if (canViewUsersAnalytics) {
+    staffStats.push({ label: "Total Users", value: users.length, icon: Users, color: "text-secondary" });
+  }
 
   const studentId = typeof user.id === "string" ? user.id : "";
   const myIssued = issuedBooks.filter(i => i.student_id === studentId);
@@ -164,7 +244,8 @@ export default function DashboardPage() {
   const myOverdue = myIssued.filter(i => i.status === "overdue").length;
   const myUpcomingDue = myIssued.filter(i => {
     if (i.status !== "issued") return false;
-    const due = new Date(i.due_date);
+    const due = toDateOnly(i.due_date);
+    if (!due) return false;
     const today = new Date();
     const diff = (due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
     return diff > 0 && diff <= 3;
@@ -177,7 +258,7 @@ export default function DashboardPage() {
   ];
 
   const recommendedBooks = books
-    .filter((b) => b.available > 0)
+    .filter((b) => isBookAvailable(b))
     .sort((a, b) => {
       const aDate = (a as Book & { created_at?: string }).created_at || a.date_of_purchase || "";
       const bDate = (b as Book & { created_at?: string }).created_at || b.date_of_purchase || "";
@@ -185,13 +266,7 @@ export default function DashboardPage() {
     })
     .slice(0, 3);
 
-  const stats = isStudent ? studentStats : adminStats;
-
-  const toDateOnly = (value: string) => {
-    const d = new Date(value);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
+  const stats = isStudent ? studentStats : staffStats;
 
   const formatDay = (value: Date) =>
     value.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -206,26 +281,39 @@ export default function DashboardPage() {
     const booksAsOfDay = books.filter((b) => {
       const createdAt = (b as Book & { created_at?: string }).created_at || b.date_of_purchase;
       if (!createdAt) return true;
-      return toDateOnly(createdAt) <= day;
+      const createdDate = toDateOnly(createdAt);
+      if (!createdDate) return true;
+      return createdDate <= day;
     });
 
-    const totalBooksAsOfDay = booksAsOfDay.reduce((sum, b) => sum + b.total, 0);
+    const totalBooksAsOfDay = booksAsOfDay.length;
+    const availableBooksAsOfDay = booksAsOfDay.filter((b) => isBookAvailable(b)).length;
 
     const activeIssuesAsOfDay = issuedBooks.filter((i) => {
       const issueDate = toDateOnly(i.issue_date);
+      if (!issueDate) return false;
       if (issueDate > day) return false;
       if (!i.return_date) return true;
-      return toDateOnly(i.return_date) > day;
+      const returnDate = toDateOnly(i.return_date);
+      if (!returnDate) return true;
+      return returnDate > day;
     });
 
     const issuedAsOfDay = activeIssuesAsOfDay.length;
-    const overdueAsOfDay = activeIssuesAsOfDay.filter((i) => toDateOnly(i.due_date) < day).length;
-    const availableAsOfDay = Math.max(totalBooksAsOfDay - issuedAsOfDay, 0);
-
-    const usersAsOfDay = users.filter((u) => {
-      if (!u.join_date) return true;
-      return toDateOnly(u.join_date) <= day;
+    const overdueAsOfDay = activeIssuesAsOfDay.filter((i) => {
+      const dueDate = toDateOnly(i.due_date);
+      return dueDate ? dueDate < day : false;
     }).length;
+    const availableAsOfDay = Math.max(availableBooksAsOfDay, 0);
+
+    const usersAsOfDay = canViewUsersAnalytics
+      ? users.filter((u) => {
+        if (!u.join_date) return true;
+        const joinDate = toDateOnly(u.join_date);
+        if (!joinDate) return true;
+        return joinDate <= day;
+      }).length
+      : 0;
 
     return {
       day: formatDay(day),
@@ -244,12 +332,14 @@ export default function DashboardPage() {
 
     const issues = issuedBooks.filter((i) => {
       const issueDate = toDateOnly(i.issue_date);
+      if (!issueDate) return false;
       return issueDate >= monthStart && issueDate < nextMonthStart;
     }).length;
 
     const returns = issuedBooks.filter((i) => {
       if (!i.return_date) return false;
       const returnDate = toDateOnly(i.return_date);
+      if (!returnDate) return false;
       return returnDate >= monthStart && returnDate < nextMonthStart;
     }).length;
 
@@ -265,6 +355,9 @@ export default function DashboardPage() {
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Welcome back, {user.name}. Here's an overview of the library.</p>
+        {!isStudent && (
+          <p className="text-xs text-muted-foreground mt-2">Live data loaded from Supabase: {books.length} book records</p>
+        )}
       </div>
 
       {isStudent && (
@@ -369,7 +462,8 @@ export default function DashboardPage() {
                           ) : (
                             Object.entries(
                               books.reduce((acc, b) => {
-                                acc[b.category] = (acc[b.category] || 0) + b.total;
+                                const category = safeText(b.category, "Uncategorized");
+                                acc[category] = (acc[category] || 0) + 1;
                                 return acc;
                               }, {} as Record<string, number>)
                             ).map(([category, count]) => (
@@ -386,13 +480,13 @@ export default function DashboardPage() {
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Available Books Breakdown</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {books.filter(b => b.available > 0).length === 0 ? (
+                          {books.filter((b) => isBookAvailable(b)).length === 0 ? (
                             <p className="text-sm text-muted-foreground">No available books</p>
                           ) : (
-                            books.filter(b => b.available > 0).map(b => (
+                            books.filter((b) => isBookAvailable(b)).map(b => (
                               <div key={b.id} className="text-sm p-2 bg-accent/10 rounded">
-                                <p className="font-medium text-foreground">{b.title}</p>
-                                <p className="text-xs text-muted-foreground">Available: {b.available} / {b.total}</p>
+                                <p className="font-medium text-foreground">{safeText(b.title, "Untitled Book")}</p>
+                                <p className="text-xs text-muted-foreground">Available: {getBookAvailableCount(b)} / {getBookTotalCount(b)}</p>
                               </div>
                             ))
                           )}
@@ -463,15 +557,15 @@ export default function DashboardPage() {
         <div className="mb-8 p-5 bg-card rounded-xl shadow-card border border-border">
           <h2 className="font-semibold text-lg text-foreground mb-4">Quick Issue Book</h2>
           <div className="grid sm:grid-cols-4 gap-4">
-            {books.filter(b => b.available > 0).slice(0, 4).map(b => (
+            {books.filter((b) => isBookAvailable(b)).slice(0, 4).map(b => (
               <button
                 key={b.id}
                 onClick={() => openIssue(b)}
                 className="p-3 rounded-lg border border-border hover:border-secondary hover:bg-secondary/5 transition-colors text-left"
               >
-                <p className="font-medium text-foreground text-sm truncate">{b.title}</p>
-                <p className="text-xs text-muted-foreground mt-1">{b.author}</p>
-                <p className="text-xs text-accent mt-2">{b.available} copies available</p>
+                <p className="font-medium text-foreground text-sm truncate">{safeText(b.title, "Untitled Book")}</p>
+                <p className="text-xs text-muted-foreground mt-1">{safeText(b.author, "Unknown Author")}</p>
+                <p className="text-xs text-accent mt-2">{getBookAvailableCount(b)} copies available</p>
               </button>
             ))}
           </div>
@@ -493,9 +587,9 @@ export default function DashboardPage() {
                     <BookOpen className="h-5 w-5 text-secondary" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-foreground leading-tight">{book.title}</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">{book.author}</p>
-                    <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">{book.category}</span>
+                    <h3 className="font-semibold text-foreground leading-tight">{safeText(book.title, "Untitled Book")}</h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">{safeText(book.author, "Unknown Author")}</p>
+                    <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">{safeText(book.category, "Uncategorized")}</span>
                   </div>
                 </div>
               </div>
@@ -531,7 +625,9 @@ export default function DashboardPage() {
                 <Line type="monotone" dataKey="booksAvailable" name="Books Available" stroke="#16a34a" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="booksIssued" name="Books Issued" stroke="#0ea5e9" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="overdueBooks" name="Overdue Books" stroke="#dc2626" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="totalUsers" name="Total Users" stroke="#7c3aed" strokeWidth={2} dot={false} />
+                {canViewUsersAnalytics && (
+                  <Line type="monotone" dataKey="totalUsers" name="Total Users" stroke="#7c3aed" strokeWidth={2} dot={false} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -578,18 +674,18 @@ export default function DashboardPage() {
             
             {/* Book Details */}
             <div className="mb-6 p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold text-foreground mb-2">{selectedBookForIssue.title}</h3>
+              <h3 className="font-semibold text-foreground mb-2">{safeText(selectedBookForIssue.title, "Untitled Book")}</h3>
               <p className="text-sm text-muted-foreground mb-1">
-                <span className="font-medium">Author:</span> {selectedBookForIssue.author}
+                <span className="font-medium">Author:</span> {safeText(selectedBookForIssue.author, "Unknown Author")}
               </p>
               <p className="text-sm text-muted-foreground mb-1">
-                <span className="font-medium">Book Number:</span> {selectedBookForIssue.book_number}
+                <span className="font-medium">Book Number:</span> {safeText(selectedBookForIssue.book_number, "N/A")}
               </p>
               <p className="text-sm text-muted-foreground mb-1">
-                <span className="font-medium">Category:</span> {selectedBookForIssue.category}
+                <span className="font-medium">Category:</span> {safeText(selectedBookForIssue.category, "Uncategorized")}
               </p>
               <p className="text-sm text-muted-foreground">
-                <span className="font-medium">Available Copies:</span> {selectedBookForIssue.available}
+                <span className="font-medium">Available Copies:</span> {getBookAvailableCount(selectedBookForIssue)}
               </p>
             </div>
 

@@ -58,6 +58,8 @@ create table if not exists public.profiles (
   email text not null,
   role text not null default 'student' check (role in ('admin', 'librarian', 'student')),
   department text,
+  contact_number text,
+  reg_no text,
   join_date date default current_date,
   created_at timestamptz default now()
 );
@@ -155,7 +157,7 @@ create policy "Users can update their own profile or admin can update"
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, name, email, role)
+  insert into public.profiles (id, name, email, role, contact_number, reg_no)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
@@ -164,7 +166,9 @@ begin
       when coalesce(new.raw_user_meta_data->>'role', '') in ('admin', 'librarian', 'student')
         then new.raw_user_meta_data->>'role'
       else 'student'
-    end
+    end,
+    nullif(new.raw_user_meta_data->>'contact_number', ''),
+    nullif(new.raw_user_meta_data->>'reg_no', '')
   );
   return new;
 end;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload, Send } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import type { Book } from "@/lib/types";
 import { fetchBooks, addBook, updateBook, deleteBook, issueBook, fetchProfile } from "@/lib/supabaseService";
@@ -12,6 +12,44 @@ function getErrorMessage(error: unknown, fallback: string) {
     if (typeof message === "string" && message.trim()) return message;
   }
   return fallback;
+}
+
+function safeText(value: unknown, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed || fallback;
+}
+
+function safeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+type PaginationItem = number | "left-ellipsis" | "right-ellipsis";
+
+function buildPagination(currentPage: number, totalPages: number): PaginationItem[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  const pages: PaginationItem[] = [1];
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+
+  if (start > 2) {
+    pages.push("left-ellipsis");
+  }
+
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+
+  if (end < totalPages - 1) {
+    pages.push("right-ellipsis");
+  }
+
+  pages.push(totalPages);
+  return pages;
 }
 
 const emptyForm = {
@@ -63,34 +101,45 @@ export default function BooksPage() {
 
   useEffect(() => { loadBooks(); }, []);
 
-  const categories = ["All", ...new Set(books.map(b => b.category).filter(Boolean))];
+  const categories = ["All", ...new Set(books.map((b) => safeText(b.category)).filter(Boolean))];
 
-  const filtered = books.filter(b => {
+  const filtered = books.filter((b) => {
     // Search filter
     const q = search.toLowerCase().trim();
+    const title = safeText(b.title).toLowerCase();
+    const author = safeText(b.author).toLowerCase();
+    const isbn = safeText(b.isbn).toLowerCase();
+    const bookNumber = safeText(b.book_number).toLowerCase();
+    const category = safeText(b.category).toLowerCase();
+    const available = safeNumber(b.available, 0);
+    const total = safeNumber(b.total, 0);
+    const publicationYear = safeNumber(b.year_of_publication, 0);
+
     const matchesSearch =
       q === "" ||
-      b.title.toLowerCase().includes(q) ||
-      b.author.toLowerCase().includes(q) ||
-      b.isbn.toLowerCase().includes(q) ||
-      b.book_number.toLowerCase().includes(q) ||
-      b.category.toLowerCase().includes(q);
+      title.includes(q) ||
+      author.includes(q) ||
+      isbn.includes(q) ||
+      bookNumber.includes(q) ||
+      category.includes(q);
     // Category filter
-    const matchesCategory = catFilter === "All" || b.category === catFilter;
+    const matchesCategory = catFilter === "All" || safeText(b.category) === catFilter;
     // Status filter
     let matchesStatus = true;
-    if (statusFilter === "Available") matchesStatus = b.available > 0;
-    else if (statusFilter === "Issued") matchesStatus = b.total - b.available > 0;
-    else if (statusFilter === "Out of Stock") matchesStatus = b.available === 0;
+    if (statusFilter === "Available") matchesStatus = available > 0;
+    else if (statusFilter === "Issued") matchesStatus = total - available > 0;
+    else if (statusFilter === "Out of Stock") matchesStatus = available === 0;
     // Year filter
     let matchesYear = true;
-    if (yearFilter === "2020-2025") matchesYear = b.year_of_publication >= 2020 && b.year_of_publication <= 2025;
-    else if (yearFilter === "2015-2019") matchesYear = b.year_of_publication >= 2015 && b.year_of_publication <= 2019;
-    else if (yearFilter === "Before 2015") matchesYear = b.year_of_publication < 2015;
+    if (yearFilter === "2020-2025") matchesYear = publicationYear >= 2020 && publicationYear <= 2025;
+    else if (yearFilter === "2015-2019") matchesYear = publicationYear >= 2015 && publicationYear <= 2019;
+    else if (yearFilter === "Before 2015") matchesYear = publicationYear < 2015;
     // Date filter (using date_of_purchase as proxy for added date)
     let matchesDate = true;
-    if (dateFilter !== "All" && b.date_of_purchase) {
-      const purchaseDate = new Date(b.date_of_purchase);
+    const purchaseDateText = safeText(b.date_of_purchase);
+    if (dateFilter !== "All" && purchaseDateText) {
+      const purchaseDate = new Date(purchaseDateText);
+      if (Number.isNaN(purchaseDate.getTime())) return false;
       const now = new Date();
       const diffDays = (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
       if (dateFilter === "Last 30 Days") matchesDate = diffDays <= 30;
@@ -98,8 +147,19 @@ export default function BooksPage() {
     }
     return matchesSearch && matchesCategory && matchesStatus && matchesYear && matchesDate;
   });
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
+  const totalCopies = filtered.reduce((sum, b) => sum + Math.max(0, safeNumber(b.total, 0)), 0);
+  const availableCopies = filtered.reduce((sum, b) => sum + Math.max(0, safeNumber(b.available, 0)), 0);
+  const issuedCopies = Math.max(totalCopies - availableCopies, 0);
+  const paginationItems = buildPagination(currentPage, totalPages);
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    catFilter !== "All" ||
+    statusFilter !== "All" ||
+    yearFilter !== "All" ||
+    dateFilter !== "All";
 
   const openAdd = () => {
     setEditingBook(null);
@@ -111,15 +171,15 @@ export default function BooksPage() {
   const openEdit = (b: Book) => {
     setEditingBook(b);
     setForm({
-      title: b.title, sub_title: b.sub_title, author: b.author, author2: b.author2,
-      isbn: b.isbn, category: b.category, available: b.available, total: b.total,
-      class_number: b.class_number, book_number: b.book_number, edition: b.edition,
-      place_of_publication: b.place_of_publication, name_of_publication: b.name_of_publication,
-      year_of_publication: b.year_of_publication, phy_desc: b.phy_desc, volume: b.volume,
-      general_note: b.general_note, subject: b.subject, permanent_location: b.permanent_location,
-      current_library: b.current_library, location: b.location, date_of_purchase: b.date_of_purchase,
-      vendor: b.vendor, bill_number: b.bill_number, price: b.price,
-      call_no: b.call_no, accession_no: b.accession_no, item_type: b.item_type,
+      title: safeText(b.title), sub_title: safeText(b.sub_title), author: safeText(b.author), author2: safeText(b.author2),
+      isbn: safeText(b.isbn), category: safeText(b.category), available: safeNumber(b.available, 0), total: safeNumber(b.total, 0),
+      class_number: safeText(b.class_number), book_number: safeText(b.book_number), edition: safeText(b.edition),
+      place_of_publication: safeText(b.place_of_publication), name_of_publication: safeText(b.name_of_publication),
+      year_of_publication: safeNumber(b.year_of_publication, new Date().getFullYear()), phy_desc: safeText(b.phy_desc), volume: safeText(b.volume),
+      general_note: safeText(b.general_note), subject: safeText(b.subject), permanent_location: safeText(b.permanent_location),
+      current_library: safeText(b.current_library), location: safeText(b.location), date_of_purchase: safeText(b.date_of_purchase),
+      vendor: safeText(b.vendor), bill_number: safeText(b.bill_number), price: safeNumber(b.price, 0),
+      call_no: safeText(b.call_no), accession_no: safeText(b.accession_no), item_type: safeText(b.item_type),
     });
     setFormErrors({});
     setModalOpen(true);
@@ -162,7 +222,7 @@ export default function BooksPage() {
   };
 
   const openIssue = (b: Book) => {
-    if (b.available <= 0) {
+    if (safeNumber(b.available, 0) <= 0) {
       toast.error("No copies available to issue");
       return;
     }
@@ -189,7 +249,7 @@ export default function BooksPage() {
 
       await issueBook({
         book_id: selectedBookForIssue.id,
-        book_title: selectedBookForIssue.title,
+        book_title: safeText(selectedBookForIssue.title, "Untitled Book"),
         student_name: resolvedStudentName,
         student_id: issueForm.studentId,
         issue_date: today.toISOString().split("T")[0],
@@ -232,23 +292,23 @@ export default function BooksPage() {
     }
 
     const rows = filtered.map((b) => ({
-      title: b.title,
-      sub_title: b.sub_title,
-      author: b.author,
-      author2: b.author2,
-      isbn: b.isbn,
-      category: b.category,
-      available: b.available,
-      total: b.total,
-      class_number: b.class_number,
-      book_number: b.book_number,
-      edition: b.edition,
-      year_of_publication: b.year_of_publication,
-      subject: b.subject,
-      date_of_purchase: b.date_of_purchase,
-      vendor: b.vendor,
-      price: b.price,
-      item_type: b.item_type,
+      title: safeText(b.title),
+      sub_title: safeText(b.sub_title),
+      author: safeText(b.author),
+      author2: safeText(b.author2),
+      isbn: safeText(b.isbn),
+      category: safeText(b.category),
+      available: safeNumber(b.available, 0),
+      total: safeNumber(b.total, 0),
+      class_number: safeText(b.class_number),
+      book_number: safeText(b.book_number),
+      edition: safeText(b.edition),
+      year_of_publication: safeNumber(b.year_of_publication, 0),
+      subject: safeText(b.subject),
+      date_of_purchase: safeText(b.date_of_purchase),
+      vendor: safeText(b.vendor),
+      price: safeNumber(b.price, 0),
+      item_type: safeText(b.item_type),
     }));
 
     exportRowsAsExcelCsv(rows, "books_export");
@@ -325,51 +385,186 @@ export default function BooksPage() {
         )}
       </div>
 
-      <div className="relative mb-6 max-w-lg">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+      <div className="grid gap-3 mb-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by title, author, ISBN, book number, or category"
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 text-sm"
+          />
+        </div>
+        <button
+          onClick={() => {
+            setSearch("");
+            setCatFilter("All");
+            setStatusFilter("All");
+            setYearFilter("All");
+            setDateFilter("All");
             setPage(1);
           }}
-          placeholder="Search by title, author, ISBN, book number, or category"
-          className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 text-sm"
-        />
+          disabled={!hasActiveFilters}
+          className="h-10 px-4 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Reset Filters
+        </button>
       </div>
 
+      <div className="bg-card border border-border rounded-xl p-4 shadow-card mb-6">
+        <div className="flex items-center gap-2 mb-3 text-sm font-medium text-foreground">
+          <Filter className="h-4 w-4 text-secondary" />
+          Quick Filters
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <select
+            value={catFilter}
+            onChange={(e) => {
+              setCatFilter(e.target.value);
+              setPage(1);
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50"
+          >
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
 
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50"
+          >
+            <option value="All">All Status</option>
+            <option value="Available">Available</option>
+            <option value="Issued">Issued</option>
+            <option value="Out of Stock">Out of Stock</option>
+          </select>
 
-      {/* Grid */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {paginated.map(b => (
-          <div key={b.id} className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <BookOpen className="h-5 w-5 text-secondary flex-shrink-0 mt-0.5" />
-              {canEdit && (
-                <div className="flex gap-1">
-                  <button onClick={() => openIssue(b)} title="Issue Book" className="p-1.5 rounded-md hover:bg-secondary/10 text-muted-foreground hover:text-secondary transition-colors">
-                    <Send className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => openEdit(b)} title="Edit Book" className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setDeleteOpen(b.id)} title="Delete Book" className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+          <select
+            value={yearFilter}
+            onChange={(e) => {
+              setYearFilter(e.target.value);
+              setPage(1);
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50"
+          >
+            <option value="All">All Years</option>
+            <option value="2020-2025">2020 - 2025</option>
+            <option value="2015-2019">2015 - 2019</option>
+            <option value="Before 2015">Before 2015</option>
+          </select>
+
+          <select
+            value={dateFilter}
+            onChange={(e) => {
+              setDateFilter(e.target.value);
+              setPage(1);
+            }}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50"
+          >
+            <option value="All">All Added Dates</option>
+            <option value="Last 30 Days">Last 30 Days</option>
+            <option value="Last 6 Months">Last 6 Months</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3 mb-6">
+        <div className="bg-card border border-border rounded-xl px-4 py-3 shadow-card">
+          <p className="text-xs text-muted-foreground">Books in View</p>
+          <p className="text-xl font-semibold text-foreground mt-1">{filtered.length}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl px-4 py-3 shadow-card">
+          <p className="text-xs text-muted-foreground">Available Copies</p>
+          <p className="text-xl font-semibold text-accent-foreground mt-1">{availableCopies}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl px-4 py-3 shadow-card">
+          <p className="text-xs text-muted-foreground">Issued Copies</p>
+          <p className="text-xl font-semibold text-secondary mt-1">{issuedCopies}</p>
+        </div>
+      </div>
+
+      <div className="space-y-3 mb-6">
+        {paginated.map((b) => {
+          const title = safeText(b.title, "Untitled Book");
+          const author = safeText(b.author, "Unknown Author");
+          const category = safeText(b.category, "Uncategorized");
+          const bookNumber = safeText(b.book_number, "N/A");
+          const isbn = safeText(b.isbn);
+          const available = Math.max(0, safeNumber(b.available, 0));
+          const total = Math.max(Math.max(0, safeNumber(b.total, 0)), available);
+          const yearOfPublication = safeNumber(b.year_of_publication, 0);
+
+          return (
+            <article
+              key={b.id}
+              className="bg-card rounded-xl border border-border px-4 py-4 shadow-card hover:shadow-elevated transition-shadow"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0 flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-foreground truncate">{title}</h3>
+                    <p className="text-sm text-muted-foreground truncate">{author}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="px-2 py-1 rounded-md bg-muted text-muted-foreground">{category}</span>
+                      <span className="px-2 py-1 rounded-md border border-border text-muted-foreground">Book No: {bookNumber}</span>
+                      {isbn && <span className="px-2 py-1 rounded-md border border-border text-muted-foreground">ISBN: {isbn}</span>}
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-            <h3 className="font-semibold text-foreground mb-1 leading-tight">{b.title}</h3>
-            <p className="text-muted-foreground text-sm mb-3">{b.author}</p>
-            <div className="flex items-center justify-between text-xs">
-              <span className="px-2 py-1 rounded-md bg-muted text-muted-foreground">{b.category}</span>
-              <span className={`font-medium ${b.available > 0 ? "text-accent-foreground" : "text-destructive"}`}>
-                {b.available}/{b.total} available
-              </span>
-            </div>
-          </div>
-        ))}
+
+                <div className="flex items-center justify-between gap-4 lg:justify-end">
+                  <div className="text-right">
+                    <p className={`text-sm font-semibold ${available > 0 ? "text-accent-foreground" : "text-destructive"}`}>
+                      {available}/{total} available
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {yearOfPublication > 0 ? `Published ${yearOfPublication}` : "Year not specified"}
+                    </p>
+                  </div>
+
+                  {canEdit && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openIssue(b)}
+                        title="Issue Book"
+                        className="p-1.5 rounded-md hover:bg-secondary/10 text-muted-foreground hover:text-secondary transition-colors"
+                      >
+                        <Send className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => openEdit(b)}
+                        title="Edit Book"
+                        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteOpen(b.id)}
+                        title="Delete Book"
+                        className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       {/* Empty state */}
@@ -382,14 +577,41 @@ export default function BooksPage() {
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {filtered.length > perPage && (
         <div className="flex items-center justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button key={i} onClick={() => setPage(i + 1)}
-              className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${page === i + 1 ? "gradient-warm text-secondary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}>
-              {i + 1}
-            </button>
-          ))}
+          <button
+            onClick={() => setPage(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+            className="h-9 px-3 rounded-lg border border-border bg-card text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          {paginationItems.map((item, index) => {
+            if (item === "left-ellipsis" || item === "right-ellipsis") {
+              return (
+                <span key={`${item}-${index}`} className="w-9 text-center text-muted-foreground">...</span>
+              );
+            }
+
+            return (
+              <button
+                key={item}
+                onClick={() => setPage(item)}
+                className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${currentPage === item ? "gradient-warm text-secondary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+              >
+                {item}
+              </button>
+            );
+          })}
+
+          <button
+            onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+            className="h-9 px-3 rounded-lg border border-border bg-card text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
       )}
 
@@ -408,18 +630,18 @@ export default function BooksPage() {
             
             {/* Book Details */}
             <div className="mb-6 p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold text-foreground mb-2">{selectedBookForIssue.title}</h3>
+              <h3 className="font-semibold text-foreground mb-2">{safeText(selectedBookForIssue.title, "Untitled Book")}</h3>
               <p className="text-sm text-muted-foreground mb-1">
-                <span className="font-medium">Author:</span> {selectedBookForIssue.author}
+                <span className="font-medium">Author:</span> {safeText(selectedBookForIssue.author, "Unknown Author")}
               </p>
               <p className="text-sm text-muted-foreground mb-1">
-                <span className="font-medium">Book Number:</span> {selectedBookForIssue.book_number}
+                <span className="font-medium">Book Number:</span> {safeText(selectedBookForIssue.book_number, "N/A")}
               </p>
               <p className="text-sm text-muted-foreground mb-1">
-                <span className="font-medium">Category:</span> {selectedBookForIssue.category}
+                <span className="font-medium">Category:</span> {safeText(selectedBookForIssue.category, "Uncategorized")}
               </p>
               <p className="text-sm text-muted-foreground">
-                <span className="font-medium">Available Copies:</span> {selectedBookForIssue.available}
+                <span className="font-medium">Available Copies:</span> {safeNumber(selectedBookForIssue.available, 0)}
               </p>
             </div>
 
@@ -535,6 +757,15 @@ export default function BooksPage() {
           </div>
         </div>
       )}
+
+      <UploadExcelModal
+        isOpen={uploadExcelOpen}
+        onClose={() => setUploadExcelOpen(false)}
+        onSuccess={async () => {
+          setUploadExcelOpen(false);
+          await loadBooks();
+        }}
+      />
 
       {/* Delete Confirm */}
       {deleteOpen && (

@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload, X, Download, AlertCircle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { bulkAddBooks, parseBooksCsv } from "@/lib/supabaseService";
 import type { BulkUploadResult } from "@/lib/supabaseService";
+import type { Book } from "@/lib/types";
 
 interface Props {
   isOpen: boolean;
@@ -14,7 +15,41 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<BulkUploadResult | null>(null);
-  const [preview, setPreview] = useState<any[]>([]);
+  const [preview, setPreview] = useState<Partial<Book>[]>([]);
+  const [parsedBooks, setParsedBooks] = useState<Partial<Book>[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setResult(null);
+      setPreview([]);
+      setParsedBooks([]);
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [isOpen]);
+
+  const parseBooksFromFile = async (file: File): Promise<Partial<Book>[]> => {
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith(".csv")) {
+      const text = await file.text();
+      return parseBooksCsv(text);
+    }
+
+    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+      const { read, utils } = await import("xlsx");
+      const workbook = read(await file.arrayBuffer(), { type: "array" });
+
+      if (!workbook.SheetNames.length) return [];
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!firstSheet) return [];
+
+      const csvText = utils.sheet_to_csv(firstSheet, { blankrows: false });
+      return parseBooksCsv(csvText);
+    }
+
+    throw new Error("Unsupported file type. Please upload .csv, .xlsx, or .xls file.");
+  };
 
   const downloadTemplate = () => {
     const headers = [
@@ -43,45 +78,38 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
     if (!file) return;
 
     try {
-      const text = await file.text();
-      const books = parseBooksCsv(text);
+      const books = await parseBooksFromFile(file);
       if (books.length === 0) {
+        setParsedBooks([]);
+        setPreview([]);
         toast.error("No valid data found in file");
         return;
       }
+
+      setParsedBooks(books);
       setPreview(books.slice(0, 5));
       setResult(null);
       toast.success(`File loaded: ${books.length} books found`);
     } catch (error) {
-      toast.error("Failed to parse file");
+      setParsedBooks([]);
+      setPreview([]);
+      toast.error(error instanceof Error ? error.message : "Failed to parse file");
     }
   };
 
   const handleUpload = async () => {
-    if (preview.length === 0) {
+    if (parsedBooks.length === 0) {
       toast.error("No books to upload. Please select a file first.");
       return;
     }
 
     setUploading(true);
+    let loadingToastId: string | number | undefined;
+
     try {
-      const file = fileInputRef.current?.files?.[0];
-      if (!file) {
-        toast.error("No file selected");
-        return;
-      }
-
-      const text = await file.text();
-      const books = parseBooksCsv(text);
-      
-      if (books.length === 0) {
-        toast.error("No valid books in file");
-        setUploading(false);
-        return;
-      }
-
-      toast.loading(`Uploading ${books.length} books...`);
-      const uploadResult = await bulkAddBooks(books);
+      loadingToastId = toast.loading(`Uploading ${parsedBooks.length} books...`);
+      const uploadResult = await bulkAddBooks(parsedBooks);
+      if (loadingToastId !== undefined) toast.dismiss(loadingToastId);
       setResult(uploadResult);
 
       if (uploadResult.successful > 0) {
@@ -95,6 +123,7 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
         toast.error(`✗ ${uploadResult.failed} books failed to upload. Check errors below.`);
       }
     } catch (error) {
+      if (loadingToastId !== undefined) toast.dismiss(loadingToastId);
       console.error("Upload error:", error);
       toast.error("Upload failed. Please try again.");
     } finally {
@@ -165,19 +194,19 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,.xlsx"
+                  accept=".csv,.xlsx,.xls"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
                 <Upload className="h-10 w-10 mx-auto mb-3 text-secondary opacity-60" />
                 <p className="font-medium text-foreground mb-1">Click to browse or drag and drop</p>
-                <p className="text-muted-foreground text-sm">CSV or Excel file (.csv, .xlsx)</p>
+                <p className="text-muted-foreground text-sm">CSV or Excel file (.csv, .xlsx, .xls)</p>
               </div>
 
               {preview.length > 0 && (
                 <div className="bg-muted/50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-medium text-foreground">Preview (showing {preview.length} of {preview.length} records)</p>
+                    <p className="text-sm font-medium text-foreground">Preview (showing {preview.length} of {parsedBooks.length} records)</p>
                     <span className="text-xs bg-secondary text-secondary-foreground px-2 py-1 rounded">Ready to upload</span>
                   </div>
                   <div className="overflow-x-auto">
@@ -215,7 +244,7 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
               </button>
               <button
                 onClick={handleUpload}
-                disabled={uploading || preview.length === 0}
+                disabled={uploading || parsedBooks.length === 0}
                 className="px-5 py-2 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 flex items-center gap-2"
               >
                 {uploading ? (

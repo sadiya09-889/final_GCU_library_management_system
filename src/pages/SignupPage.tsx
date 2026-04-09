@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
+  const [regNo, setRegNo] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,6 +20,25 @@ export default function SignupPage() {
     e.preventDefault();
     setError("");
 
+    const trimmedName = name.trim();
+    const trimmedRegNo = regNo.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!trimmedName) {
+      setError("Full name is required.");
+      return;
+    }
+
+    if (!trimmedRegNo) {
+      setError("Reg No is required.");
+      return;
+    }
+
+    if (!/^[A-Za-z0-9\-\/]+$/.test(trimmedRegNo)) {
+      setError("Reg No can contain letters, numbers, - and / only.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -30,10 +50,10 @@ export default function SignupPage() {
 
     setLoading(true);
     const { error: authError } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
       options: {
-        data: { name, role: "student" },
+        data: { name: trimmedName, role: "student", reg_no: trimmedRegNo },
       },
     });
     setLoading(false);
@@ -48,7 +68,7 @@ export default function SignupPage() {
     }
 
     // Redirect to OTP verification
-    navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
+    navigate(`/verify-otp?email=${encodeURIComponent(normalizedEmail)}`);
   };
 
   return (
@@ -96,6 +116,20 @@ export default function SignupPage() {
                 onChange={e => setName(e.target.value)}
                 required
                 placeholder="John Doe"
+                className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
+              />
+            </div>
+
+            {/* Registration Number */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Reg No</label>
+              <input
+                type="text"
+                value={regNo}
+                onChange={e => setRegNo(e.target.value)}
+                required
+                maxLength={30}
+                placeholder="e.g. 22CS001"
                 className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
               />
             </div>
