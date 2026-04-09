@@ -372,6 +372,17 @@ async function fetchBookInventory(bookId: string) {
     return { available, total };
 }
 
+async function fetchActiveIssuedCount(bookId: string) {
+    const { count, error } = await supabase
+        .from("issued_books")
+        .select("id", { count: "exact", head: true })
+        .eq("book_id", bookId)
+        .in("status", ["issued", "overdue"]);
+
+    if (error) throw error;
+    return count ?? 0;
+}
+
 async function updateBookAvailableOptimistically(bookId: string, expectedAvailable: number, nextAvailable: number) {
     const { data, error } = await supabase
         .from("books")
@@ -393,11 +404,15 @@ export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBo
     let decremented = false;
 
     for (let attempt = 0; attempt < 3; attempt++) {
-        const { available } = await fetchBookInventory(bookId);
-        if (available <= 0) throw new Error("No copies available to issue");
+        const inventory = await fetchBookInventory(bookId);
+        const activeIssues = await fetchActiveIssuedCount(bookId);
+        const computedAvailable = Math.max(inventory.total - activeIssues, 0);
+        const effectiveAvailable = Math.min(inventory.available, computedAvailable);
 
-        previousAvailable = available;
-        nextAvailable = available - 1;
+        if (effectiveAvailable <= 0) throw new Error("No copies available to issue");
+
+        previousAvailable = inventory.available;
+        nextAvailable = effectiveAvailable - 1;
 
         const updated = await updateBookAvailableOptimistically(bookId, previousAvailable, nextAvailable);
         if (updated) {

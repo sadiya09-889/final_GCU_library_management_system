@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
@@ -80,6 +80,24 @@ export default function DashboardPage() {
   const [issuingSaving, setIssuingSaving] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadErrorShownRef = useRef(false);
+
+  const activeIssuesByBookId = useMemo(() => {
+    return issuedBooks.reduce((acc, issue) => {
+      if (issue.status !== "issued" && issue.status !== "overdue") return acc;
+      const bookId = (issue as unknown as { book_id?: unknown }).book_id;
+      if (typeof bookId !== "string" || !bookId) return acc;
+      acc[bookId] = (acc[bookId] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [issuedBooks]);
+
+  const getEffectiveAvailableCount = (book: Book) => {
+    const total = getBookTotalCount(book);
+    const storedAvailable = getBookAvailableCount(book);
+    const activeIssuesForBook = activeIssuesByBookId[book.id] || 0;
+    const computedAvailable = Math.max(total - activeIssuesForBook, 0);
+    return Math.min(storedAvailable, computedAvailable);
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -169,7 +187,7 @@ export default function DashboardPage() {
   };
 
   const openIssue = (book: Book) => {
-    if (getBookAvailableCount(book) <= 0) {
+    if (getEffectiveAvailableCount(book) <= 0) {
       toast.error("No copies available to issue");
       return;
     }
@@ -225,9 +243,10 @@ export default function DashboardPage() {
   }
 
   const totalBooks = books.reduce((sum, b) => sum + getBookTotalCount(b), 0);
-  const available = books.reduce((sum, b) => sum + getBookAvailableCount(b), 0);
+  const available = books.reduce((sum, b) => sum + getEffectiveAvailableCount(b), 0);
   const issued = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue").length;
   const overdue = issuedBooks.filter(i => i.status === "overdue").length;
+  const availableBookRecords = books.filter((b) => getEffectiveAvailableCount(b) > 0);
 
   const staffStats = [
     { label: "Total Books", value: totalBooks, icon: BookOpen, color: "text-secondary" },
@@ -260,7 +279,7 @@ export default function DashboardPage() {
   ];
 
   const recommendedBooks = books
-    .filter((b) => isBookAvailable(b))
+    .filter((b) => getEffectiveAvailableCount(b) > 0)
     .sort((a, b) => {
       const aDate = (a as Book & { created_at?: string }).created_at || a.date_of_purchase || "";
       const bDate = (b as Book & { created_at?: string }).created_at || b.date_of_purchase || "";
@@ -482,13 +501,13 @@ export default function DashboardPage() {
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Available Books Breakdown</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {books.filter((b) => isBookAvailable(b)).length === 0 ? (
+                          {availableBookRecords.length === 0 ? (
                             <p className="text-sm text-muted-foreground">No available books</p>
                           ) : (
-                            books.filter((b) => isBookAvailable(b)).map(b => (
+                            availableBookRecords.map(b => (
                               <div key={b.id} className="text-sm p-2 bg-accent/10 rounded">
                                 <p className="font-medium text-foreground">{safeText(b.title, "Untitled Book")}</p>
-                                <p className="text-xs text-muted-foreground">Available: {getBookAvailableCount(b)} / {getBookTotalCount(b)}</p>
+                                <p className="text-xs text-muted-foreground">Available: {getEffectiveAvailableCount(b)} / {getBookTotalCount(b)}</p>
                               </div>
                             ))
                           )}
@@ -559,7 +578,7 @@ export default function DashboardPage() {
         <div className="mb-8 p-5 bg-card rounded-xl shadow-card border border-border">
           <h2 className="font-semibold text-lg text-foreground mb-4">Quick Issue Book</h2>
           <div className="grid sm:grid-cols-4 gap-4">
-            {books.filter((b) => isBookAvailable(b)).slice(0, 4).map(b => (
+            {availableBookRecords.slice(0, 4).map(b => (
               <button
                 key={b.id}
                 onClick={() => openIssue(b)}
@@ -567,7 +586,7 @@ export default function DashboardPage() {
               >
                 <p className="font-medium text-foreground text-sm truncate">{safeText(b.title, "Untitled Book")}</p>
                 <p className="text-xs text-muted-foreground mt-1">{safeText(b.author, "Unknown Author")}</p>
-                <p className="text-xs text-accent mt-2">{getBookAvailableCount(b)} copies available</p>
+                <p className="text-xs text-accent mt-2">{getEffectiveAvailableCount(b)} copies available</p>
               </button>
             ))}
           </div>
@@ -687,7 +706,7 @@ export default function DashboardPage() {
                 <span className="font-medium">Category:</span> {safeText(selectedBookForIssue.category, "Uncategorized")}
               </p>
               <p className="text-sm text-muted-foreground">
-                <span className="font-medium">Available Copies:</span> {getBookAvailableCount(selectedBookForIssue)}
+                <span className="font-medium">Available Copies:</span> {getEffectiveAvailableCount(selectedBookForIssue)}
               </p>
             </div>
 
