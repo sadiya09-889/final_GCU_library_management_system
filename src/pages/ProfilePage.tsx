@@ -19,6 +19,13 @@ function getMetadataValue(value: unknown) {
   return value.trim();
 }
 
+function getProfileRole(value: unknown): UserProfile["role"] {
+  if (value === "admin" || value === "librarian" || value === "student") {
+    return value;
+  }
+  return "student";
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,15 +88,30 @@ export default function ProfilePage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        const metadataName =
+          getMetadataValue(user.user_metadata?.name) ||
+          getMetadataValue(user.user_metadata?.full_name) ||
+          getMetadataValue(user.email?.split("@")[0]) ||
+          "User";
+
+        const metadataEmail = getMetadataValue(user.email);
+        const metadataRole = getProfileRole(user.user_metadata?.role);
         const metadataContact = getMetadataValue(user.user_metadata?.contact_number);
         const metadataRegNo = getMetadataValue(user.user_metadata?.reg_no);
+        const fallbackJoinDate = user.created_at
+          ? new Date(user.created_at).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0];
 
         const userProfile = await fetchProfile(user.id);
         if (userProfile) {
           const mergedProfile: UserProfile = {
             ...userProfile,
+            name: getMetadataValue(userProfile.name) || metadataName,
+            email: getMetadataValue(userProfile.email) || metadataEmail,
+            role: getProfileRole(userProfile.role || metadataRole),
             contact_number: userProfile.contact_number || metadataContact,
             reg_no: userProfile.reg_no || metadataRegNo,
+            join_date: userProfile.join_date || fallbackJoinDate,
           };
 
           setProfile(mergedProfile);
@@ -100,16 +122,16 @@ export default function ProfilePage() {
           });
         } else {
           // If no profile exists in database, create a fallback from auth data
-          const role = user.user_metadata?.role || "student";
+          const role = metadataRole;
           const fallbackProfile: UserProfile = {
             id: user.id,
-            name: role === "librarian" || role === "admin" ? "Murali" : (user.user_metadata?.name || user.user_metadata?.full_name || user.email || "User"),
-            email: role === "librarian" || role === "admin" ? "Murali.gcu.edu.in" : (user.email || ""),
+            name: metadataName,
+            email: metadataEmail,
             role,
-            department: role === "admin" ? "Administration" : role === "librarian" ? "Library" : "Computer Science",
+            department: role === "admin" ? "Administration" : role === "librarian" ? "Library" : "",
             contact_number: metadataContact,
             reg_no: metadataRegNo,
-            join_date: "2023-08-01"
+            join_date: fallbackJoinDate,
           };
           setProfile(fallbackProfile);
           setFormData({

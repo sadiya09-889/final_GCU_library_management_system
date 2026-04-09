@@ -391,12 +391,22 @@ export async function fetchProfiles(): Promise<UserProfile[]> {
     return data ?? [];
 }
 
-export async function fetchProfile(userId: string): Promise<UserProfile | null> {
+function looksLikeUuid(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+export async function fetchProfile(userIdentifier: string): Promise<UserProfile | null> {
+    const identifier = userIdentifier.trim();
+    if (!identifier) return null;
+
+    const lookupColumn = looksLikeUuid(identifier) ? "id" : "reg_no";
+
     const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", userId)
-        .single();
+        .eq(lookupColumn, identifier)
+        .maybeSingle();
+
     if (error) return null;
     return data;
 }

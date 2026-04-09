@@ -1,12 +1,18 @@
-import { useState, useEffect } from "react";
-import { Search, Filter, BookOpen, Eye, BookmarkPlus, Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Search, BookOpen, Eye, BookmarkPlus, Loader2 } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import type { Book } from "@/lib/types";
 import { fetchBooks } from "@/lib/supabaseService";
 
 export default function OPACPage() {
+  const location = useLocation();
+  const urlSearch = useMemo(() => {
+    return new URLSearchParams(location.search).get("q")?.trim() ?? "";
+  }, [location.search]);
+
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(urlSearch);
   const [catFilter, setCatFilter] = useState("All");
   const [yearFilter, setYearFilter] = useState("All");
   const [availOnly, setAvailOnly] = useState(false);
@@ -20,15 +26,32 @@ export default function OPACPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const categories = ["All", ...new Set(books.map(b => b.category).filter(Boolean))];
-  const years = ["All", ...new Set(books.map(b => b.year_of_publication.toString()))].sort();
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
+
+  const categories = ["All", ...new Set(books.map(b => (b.category || "").trim()).filter(Boolean))];
+  const years = ["All", ...new Set(books
+    .map(b => b.year_of_publication)
+    .filter((year): year is number => Number.isFinite(Number(year)))
+    .map(year => String(year)))].sort();
 
   const filtered = books.filter(b => {
-    const matchSearch = b.title.toLowerCase().includes(search.toLowerCase()) ||
-      b.author.toLowerCase().includes(search.toLowerCase()) ||
-      b.isbn.includes(search);
+    const query = search.toLowerCase().trim();
+    const title = (b.title || "").toLowerCase();
+    const author = (b.author || "").toLowerCase();
+    const isbn = (b.isbn || "").toLowerCase();
+    const publicationYear = String(b.year_of_publication ?? "");
+
+    const matchSearch =
+      !query ||
+      title.includes(query) ||
+      author.includes(query) ||
+      isbn.includes(query) ||
+      publicationYear.includes(query);
+
     const matchCat = catFilter === "All" || b.category === catFilter;
-    const matchYear = yearFilter === "All" || b.year_of_publication.toString() === yearFilter;
+    const matchYear = yearFilter === "All" || String(b.year_of_publication ?? "") === yearFilter;
     const matchAvail = !availOnly || b.available > 0;
     return matchSearch && matchCat && matchYear && matchAvail;
   });
