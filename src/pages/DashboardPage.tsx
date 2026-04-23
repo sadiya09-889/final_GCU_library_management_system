@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fetchBooks, fetchIssuedBooks, fetchProfiles, checkAndUpdateOverdueBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
+import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
 import type { Book, IssuedBook, UserProfile } from "@/lib/types";
 import { toast } from "sonner";
@@ -70,9 +70,13 @@ export default function DashboardPage() {
   const canViewUsersAnalytics = isAdmin;
 
   const [books, setBooks] = useState<Book[]>([]);
+  const [previewBooks, setPreviewBooks] = useState<Book[]>([]);
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [bookRecordCount, setBookRecordCount] = useState(0);
+  const [availableBookRecordCount, setAvailableBookRecordCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [booksLoading, setBooksLoading] = useState(true);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const [issueModalOpen, setIssueModalOpen] = useState(false);
   const [selectedBookForIssue, setSelectedBookForIssue] = useState<Book | null>(null);
@@ -99,7 +103,19 @@ export default function DashboardPage() {
     return Math.min(storedAvailable, computedAvailable);
   };
 
-  const loadDashboardData = async () => {
+  const loadDetailedBooks = async () => {
+    setBooksLoading(true);
+    try {
+      const result = await fetchBooksForDashboard();
+      setBooks(result);
+    } catch {
+      // Keep the last known dashboard books if the detailed refresh fails.
+    } finally {
+      setBooksLoading(false);
+    }
+  };
+
+  const loadDashboardData = async (options?: { refreshDetailedBooks?: boolean }) => {
     try {
       try {
         await checkAndUpdateOverdueBooks();
@@ -107,16 +123,28 @@ export default function DashboardPage() {
         // Ignore overdue sync errors and continue with dashboard data fetch.
       }
 
-      const [booksResult, issuedBooksResult, usersResult] = await Promise.allSettled([
-        fetchBooks(),
+      const [bookCountResult, availableBookCountResult, previewBooksResult, issuedBooksResult, usersResult] = await Promise.allSettled([
+        fetchBookRecordCount(),
+        fetchAvailableBookRecordCount(),
+        fetchAvailableBooks(isStudent ? 3 : 4),
         fetchIssuedBooks(),
         canViewUsersAnalytics ? fetchProfiles() : Promise.resolve([] as UserProfile[]),
       ]);
 
       let anySuccess = false;
 
-      if (booksResult.status === "fulfilled") {
-        setBooks(booksResult.value);
+      if (bookCountResult.status === "fulfilled") {
+        setBookRecordCount(bookCountResult.value);
+        anySuccess = true;
+      }
+
+      if (availableBookCountResult.status === "fulfilled") {
+        setAvailableBookRecordCount(availableBookCountResult.value);
+        anySuccess = true;
+      }
+
+      if (previewBooksResult.status === "fulfilled") {
+        setPreviewBooks(previewBooksResult.value);
         anySuccess = true;
       }
 
@@ -140,30 +168,34 @@ export default function DashboardPage() {
       }
     } finally {
       setLoading(false);
+
+      if (options?.refreshDetailedBooks) {
+        void loadDetailedBooks();
+      }
     }
   };
 
   useEffect(() => {
-    loadDashboardData();
+    void loadDashboardData({ refreshDetailedBooks: true });
 
-    const scheduleRefresh = () => {
+    const scheduleRefresh = (refreshDetailedBooks = false) => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
-        void loadDashboardData();
+        void loadDashboardData({ refreshDetailedBooks });
       }, 400);
     };
 
     const channel = supabase
       .channel("dashboard-live-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "books" }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "issued_books" }, scheduleRefresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "books" }, () => scheduleRefresh(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "issued_books" }, () => scheduleRefresh(false))
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => scheduleRefresh(false))
       .subscribe();
 
     // Fallback refresh in case realtime events are delayed/missed.
     const intervalId = setInterval(() => {
       void loadDashboardData();
-    }, 10000);
+    }, 30000);
 
     const handleWindowFocus = () => {
       void loadDashboardData();
@@ -242,15 +274,16 @@ export default function DashboardPage() {
     );
   }
 
-  const totalBooks = books.reduce((sum, b) => sum + getBookTotalCount(b), 0);
-  const available = books.reduce((sum, b) => sum + getEffectiveAvailableCount(b), 0);
+  const totalBooks = bookRecordCount;
+  const available = availableBookRecordCount;
   const issued = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue").length;
   const overdue = issuedBooks.filter(i => i.status === "overdue").length;
   const availableBookRecords = books.filter((b) => getEffectiveAvailableCount(b) > 0);
+  const highlightedBooks = previewBooks.length > 0 ? previewBooks : availableBookRecords.slice(0, isStudent ? 3 : 4);
 
   const staffStats = [
-    { label: "Total Books", value: totalBooks, icon: BookOpen, color: "text-secondary" },
-    { label: "Books Available", value: available, icon: TrendingUp, color: "text-accent" },
+    { label: "Total Book Records", value: totalBooks, icon: BookOpen, color: "text-secondary" },
+    { label: "Available Records", value: available, icon: TrendingUp, color: "text-accent" },
     { label: "Books Issued", value: issued, icon: BookCopy, color: "text-secondary" },
     { label: "Overdue Books", value: overdue, icon: AlertTriangle, color: "text-destructive" },
   ];
@@ -278,7 +311,7 @@ export default function DashboardPage() {
     { label: "Overdue", value: myOverdue, icon: AlertTriangle, color: "text-destructive" },
   ];
 
-  const recommendedBooks = books
+  const recommendedBooks = highlightedBooks
     .filter((b) => getEffectiveAvailableCount(b) > 0)
     .sort((a, b) => {
       const aDate = (a as Book & { created_at?: string }).created_at || a.date_of_purchase || "";
@@ -377,7 +410,9 @@ export default function DashboardPage() {
         <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Welcome back, {user.name}. Here's an overview of the library.</p>
         {!isStudent && (
-          <p className="text-xs text-muted-foreground mt-2">Live data loaded from Supabase: {books.length} book records</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            {booksLoading ? "Loading detailed book analytics..." : `Live data loaded from Supabase: ${books.length} detailed book records`}
+          </p>
         )}
       </div>
 
@@ -474,11 +509,13 @@ export default function DashboardPage() {
                   </>
                 ) : (
                   <>
-                    {s.label === "Total Books" && (
+                    {s.label === "Total Book Records" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Books by Category</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {books.length === 0 ? (
+                          {booksLoading ? (
+                            <p className="text-sm text-muted-foreground">Loading category analytics...</p>
+                          ) : books.length === 0 ? (
                             <p className="text-sm text-muted-foreground">No books</p>
                           ) : (
                             Object.entries(
@@ -497,11 +534,13 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                    {s.label === "Books Available" && (
+                    {s.label === "Available Records" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Available Books Breakdown</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {availableBookRecords.length === 0 ? (
+                          {booksLoading ? (
+                            <p className="text-sm text-muted-foreground">Loading available book details...</p>
+                          ) : availableBookRecords.length === 0 ? (
                             <p className="text-sm text-muted-foreground">No available books</p>
                           ) : (
                             availableBookRecords.map(b => (
@@ -578,7 +617,7 @@ export default function DashboardPage() {
         <div className="mb-8 p-5 bg-card rounded-xl shadow-card border border-border">
           <h2 className="font-semibold text-lg text-foreground mb-4">Quick Issue Book</h2>
           <div className="grid sm:grid-cols-4 gap-4">
-            {availableBookRecords.slice(0, 4).map(b => (
+            {highlightedBooks.slice(0, 4).map(b => (
               <button
                 key={b.id}
                 onClick={() => openIssue(b)}
@@ -628,6 +667,12 @@ export default function DashboardPage() {
       {!isStudent && (
         <div className="bg-card rounded-xl shadow-card border border-border p-5 mb-6">
           <h2 className="font-semibold text-lg text-foreground mb-6">Daily Library Analytics (Last 14 Days)</h2>
+          {booksLoading ? (
+            <div className="h-[320px] w-full flex items-center justify-center text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin text-secondary mr-2" />
+              Loading book analytics...
+            </div>
+          ) : (
           <div className="h-[320px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={analyticsData} margin={{ top: 8, right: 20, left: 0, bottom: 8 }}>
@@ -652,6 +697,7 @@ export default function DashboardPage() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          )}
         </div>
       )}
 

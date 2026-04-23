@@ -37,6 +37,14 @@ create table if not exists public.books (
   created_at timestamptz default now()
 );
 
+create unique index if not exists books_book_number_unique
+  on public.books ((lower(btrim(book_number))))
+  where nullif(btrim(book_number), '') is not null;
+
+create unique index if not exists books_accession_no_unique
+  on public.books ((lower(btrim(accession_no))))
+  where nullif(btrim(accession_no), '') is not null;
+
 -- 2. Issued books table
 create table if not exists public.issued_books (
   id uuid primary key default gen_random_uuid(),

@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import type { Book } from "@/lib/types";
-import { fetchBooks, addBook, updateBook, deleteBook, issueBook, fetchProfile } from "@/lib/supabaseService";
+import { fetchBooksPage, fetchBookRecordCount, fetchBookCategories, fetchAllBooks, addBook, updateBook, deleteBook, issueBook, fetchProfile } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 import UploadExcelModal from "@/components/UploadExcelModal";
+import { supabase } from "@/lib/supabase";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -23,6 +24,60 @@ function safeText(value: unknown, fallback = "") {
 function safeNumber(value: unknown, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function matchesBookFilters(
+  book: Book,
+  filters: {
+    search: string;
+    category: string;
+    status: string;
+    yearFilter: string;
+    dateFilter: string;
+  },
+) {
+  const q = filters.search.toLowerCase().trim();
+  const title = safeText(book.title).toLowerCase();
+  const author = safeText(book.author).toLowerCase();
+  const isbn = safeText(book.isbn).toLowerCase();
+  const bookNumber = safeText(book.book_number).toLowerCase();
+  const category = safeText(book.category).toLowerCase();
+  const available = safeNumber(book.available, 0);
+  const total = safeNumber(book.total, 0);
+  const publicationYear = safeNumber(book.year_of_publication, 0);
+
+  const matchesSearch =
+    q === "" ||
+    title.includes(q) ||
+    author.includes(q) ||
+    isbn.includes(q) ||
+    bookNumber.includes(q) ||
+    category.includes(q);
+
+  const matchesCategory = filters.category === "All" || safeText(book.category) === filters.category;
+
+  let matchesStatus = true;
+  if (filters.status === "Available") matchesStatus = available > 0;
+  else if (filters.status === "Issued") matchesStatus = total - available > 0;
+  else if (filters.status === "Out of Stock") matchesStatus = available === 0;
+
+  let matchesYear = true;
+  if (filters.yearFilter === "2020-2025") matchesYear = publicationYear >= 2020 && publicationYear <= 2025;
+  else if (filters.yearFilter === "2015-2019") matchesYear = publicationYear >= 2015 && publicationYear <= 2019;
+  else if (filters.yearFilter === "Before 2015") matchesYear = publicationYear < 2015;
+
+  let matchesDate = true;
+  const purchaseDateText = safeText(book.date_of_purchase);
+  if (filters.dateFilter !== "All" && purchaseDateText) {
+    const purchaseDate = new Date(purchaseDateText);
+    if (Number.isNaN(purchaseDate.getTime())) return false;
+    const now = new Date();
+    const diffDays = (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
+    if (filters.dateFilter === "Last 30 Days") matchesDate = diffDays <= 30;
+    else if (filters.dateFilter === "Last 6 Months") matchesDate = diffDays <= 180;
+  }
+
+  return matchesSearch && matchesCategory && matchesStatus && matchesYear && matchesDate;
 }
 
 type PaginationItem = number | "left-ellipsis" | "right-ellipsis";
@@ -81,6 +136,12 @@ export default function BooksPage() {
   const [selectedBookForIssue, setSelectedBookForIssue] = useState<Book | null>(null);
   const [issueForm, setIssueForm] = useState({ studentId: "" });
   const [issuingSaving, setIssuingSaving] = useState(false);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [totalBookRecords, setTotalBookRecords] = useState(0);
+  const [matchingBookRecords, setMatchingBookRecords] = useState(0);
+  const [categories, setCategories] = useState<string[]>(["All"]);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadErrorShownRef = useRef(false);
 
   const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
   const canEdit = user.role === "admin" || user.role === "librarian";
@@ -89,69 +150,126 @@ export default function BooksPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const loadBooks = async () => {
+    if (!loading) {
+      setTableLoading(true);
+    }
+
     try {
-      const data = await fetchBooks();
-      setBooks(data);
+      const filters = {
+        search,
+        category: catFilter,
+        status: statusFilter,
+        yearFilter,
+        dateFilter,
+      };
+
+      if (statusFilter === "Issued") {
+        const allBooks = await fetchAllBooks();
+        const filteredBooks = allBooks.filter((book) => matchesBookFilters(book, filters));
+        const totalPagesForResults = Math.max(1, Math.ceil(filteredBooks.length / perPage));
+        const safePage = Math.min(page, totalPagesForResults);
+
+        setTotalBookRecords(allBooks.length);
+        setMatchingBookRecords(filteredBooks.length);
+        setBooks(filteredBooks.slice((safePage - 1) * perPage, safePage * perPage));
+
+        if (safePage !== page) {
+          setPage(safePage);
+        }
+      } else {
+        const [bookCount, pageResult] = await Promise.all([
+          fetchBookRecordCount(),
+          fetchBooksPage({
+            page,
+            perPage,
+            search,
+            category: catFilter,
+            status: statusFilter as "All" | "Available" | "Issued" | "Out of Stock",
+            yearFilter: yearFilter as "All" | "2020-2025" | "2015-2019" | "Before 2015",
+            dateFilter: dateFilter as "All" | "Last 30 Days" | "Last 6 Months",
+          }),
+        ]);
+
+        const totalPagesForResults = Math.max(1, Math.ceil(pageResult.total / perPage));
+        const safePage = Math.min(page, totalPagesForResults);
+
+        setTotalBookRecords(bookCount);
+        setMatchingBookRecords(pageResult.total);
+        setBooks(pageResult.books);
+
+        if (safePage !== page) {
+          setPage(safePage);
+        }
+      }
+
+      if (loadErrorShownRef.current) {
+        loadErrorShownRef.current = false;
+      }
     } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to load books"));
+      if (!loadErrorShownRef.current) {
+        loadErrorShownRef.current = true;
+        toast.error(getErrorMessage(error, "Failed to load books"));
+      }
     } finally {
       setLoading(false);
+      setTableLoading(false);
     }
   };
 
-  useEffect(() => { loadBooks(); }, []);
+  useEffect(() => {
+    void loadBooks();
+  }, [page, search, catFilter, statusFilter, yearFilter, dateFilter]);
 
-  const categories = ["All", ...new Set(books.map((b) => safeText(b.category)).filter(Boolean))];
+  useEffect(() => {
+    const loadCategoryOptions = async () => {
+      try {
+        const options = await fetchBookCategories();
+        setCategories(options);
+      } catch {
+        // Keep a safe fallback if categories cannot be loaded.
+      }
+    };
 
-  const filtered = books.filter((b) => {
-    // Search filter
-    const q = search.toLowerCase().trim();
-    const title = safeText(b.title).toLowerCase();
-    const author = safeText(b.author).toLowerCase();
-    const isbn = safeText(b.isbn).toLowerCase();
-    const bookNumber = safeText(b.book_number).toLowerCase();
-    const category = safeText(b.category).toLowerCase();
-    const available = safeNumber(b.available, 0);
-    const total = safeNumber(b.total, 0);
-    const publicationYear = safeNumber(b.year_of_publication, 0);
+    void loadCategoryOptions();
+  }, []);
 
-    const matchesSearch =
-      q === "" ||
-      title.includes(q) ||
-      author.includes(q) ||
-      isbn.includes(q) ||
-      bookNumber.includes(q) ||
-      category.includes(q);
-    // Category filter
-    const matchesCategory = catFilter === "All" || safeText(b.category) === catFilter;
-    // Status filter
-    let matchesStatus = true;
-    if (statusFilter === "Available") matchesStatus = available > 0;
-    else if (statusFilter === "Issued") matchesStatus = total - available > 0;
-    else if (statusFilter === "Out of Stock") matchesStatus = available === 0;
-    // Year filter
-    let matchesYear = true;
-    if (yearFilter === "2020-2025") matchesYear = publicationYear >= 2020 && publicationYear <= 2025;
-    else if (yearFilter === "2015-2019") matchesYear = publicationYear >= 2015 && publicationYear <= 2019;
-    else if (yearFilter === "Before 2015") matchesYear = publicationYear < 2015;
-    // Date filter (using date_of_purchase as proxy for added date)
-    let matchesDate = true;
-    const purchaseDateText = safeText(b.date_of_purchase);
-    if (dateFilter !== "All" && purchaseDateText) {
-      const purchaseDate = new Date(purchaseDateText);
-      if (Number.isNaN(purchaseDate.getTime())) return false;
-      const now = new Date();
-      const diffDays = (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
-      if (dateFilter === "Last 30 Days") matchesDate = diffDays <= 30;
-      else if (dateFilter === "Last 6 Months") matchesDate = diffDays <= 180;
-    }
-    return matchesSearch && matchesCategory && matchesStatus && matchesYear && matchesDate;
-  });
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  useEffect(() => {
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        void loadBooks();
+      }, 400);
+    };
+
+    const channel = supabase
+      .channel("books-live-updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "books" }, scheduleRefresh)
+      .subscribe();
+
+    const intervalId = setInterval(() => {
+      void loadBooks();
+    }, 30000);
+
+    const handleWindowFocus = () => {
+      void loadBooks();
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      clearInterval(intervalId);
+      window.removeEventListener("focus", handleWindowFocus);
+      void supabase.removeChannel(channel);
+    };
+  }, [page, search, catFilter, statusFilter, yearFilter, dateFilter, loading]);
+
+  const filtered = books;
+  const totalPages = Math.max(1, Math.ceil(matchingBookRecords / perPage));
   const currentPage = Math.min(page, totalPages);
-  const paginated = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
-  const totalCopies = filtered.reduce((sum, b) => sum + Math.max(0, safeNumber(b.total, 0)), 0);
-  const availableCopies = filtered.reduce((sum, b) => sum + Math.max(0, safeNumber(b.available, 0)), 0);
+  const paginated = books;
+  const totalCopies = paginated.reduce((sum, b) => sum + Math.max(0, safeNumber(b.total, 0)), 0);
+  const availableCopies = paginated.reduce((sum, b) => sum + Math.max(0, safeNumber(b.available, 0)), 0);
   const issuedCopies = Math.max(totalCopies - availableCopies, 0);
   const paginationItems = buildPagination(currentPage, totalPages);
   const hasActiveFilters =
@@ -189,6 +307,7 @@ export default function BooksPage() {
     const errors: Record<string, string> = {};
     if (!form.title.trim()) errors.title = "Title is required";
     if (!form.author.trim()) errors.author = "Author is required";
+    if (!form.book_number.trim()) errors.book_number = "Book number is required";
     if (!form.year_of_publication) errors.year_of_publication = "Year of Publication is required";
     if (form.total < 0) errors.total = "Total must be 0 or more";
     if (form.available < 0) errors.available = "Available must be 0 or more";
@@ -286,33 +405,50 @@ export default function BooksPage() {
   };
 
   const handleDownloadBooks = () => {
-    if (filtered.length === 0) {
-      toast.info("No books to export");
-      return;
-    }
+    const filters = {
+      search,
+      category: catFilter,
+      status: statusFilter,
+      yearFilter,
+      dateFilter,
+    };
 
-    const rows = filtered.map((b) => ({
-      title: safeText(b.title),
-      sub_title: safeText(b.sub_title),
-      author: safeText(b.author),
-      author2: safeText(b.author2),
-      isbn: safeText(b.isbn),
-      category: safeText(b.category),
-      available: safeNumber(b.available, 0),
-      total: safeNumber(b.total, 0),
-      class_number: safeText(b.class_number),
-      book_number: safeText(b.book_number),
-      edition: safeText(b.edition),
-      year_of_publication: safeNumber(b.year_of_publication, 0),
-      subject: safeText(b.subject),
-      date_of_purchase: safeText(b.date_of_purchase),
-      vendor: safeText(b.vendor),
-      price: safeNumber(b.price, 0),
-      item_type: safeText(b.item_type),
-    }));
+    void (async () => {
+      try {
+        const allBooks = await fetchAllBooks();
+        const rows = allBooks
+          .filter((book) => matchesBookFilters(book, filters))
+          .map((b) => ({
+            title: safeText(b.title),
+            sub_title: safeText(b.sub_title),
+            author: safeText(b.author),
+            author2: safeText(b.author2),
+            isbn: safeText(b.isbn),
+            category: safeText(b.category),
+            available: safeNumber(b.available, 0),
+            total: safeNumber(b.total, 0),
+            class_number: safeText(b.class_number),
+            book_number: safeText(b.book_number),
+            edition: safeText(b.edition),
+            year_of_publication: safeNumber(b.year_of_publication, 0),
+            subject: safeText(b.subject),
+            date_of_purchase: safeText(b.date_of_purchase),
+            vendor: safeText(b.vendor),
+            price: safeNumber(b.price, 0),
+            item_type: safeText(b.item_type),
+          }));
 
-    exportRowsAsExcelCsv(rows, "books_export");
-    toast.success("Books Excel sheet downloaded");
+        if (rows.length === 0) {
+          toast.info("No books to export");
+          return;
+        }
+
+        exportRowsAsExcelCsv(rows, "books_export");
+        toast.success("Books Excel sheet downloaded");
+      } catch (error) {
+        toast.error(getErrorMessage(error, "Failed to export books"));
+      }
+    })();
   };
 
   const textFields: { label: string; key: keyof typeof emptyForm }[] = [
@@ -350,7 +486,7 @@ export default function BooksPage() {
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: currentYear - 1970 + 1 }, (_, i) => currentYear - i);
 
-  const requiredKeys = ["title", "author", "year_of_publication"];
+  const requiredKeys = ["title", "author", "book_number", "year_of_publication"];
 
   if (loading) {
     return (
@@ -365,7 +501,7 @@ export default function BooksPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Books Management</h1>
-          <p className="text-muted-foreground mt-1">{filtered.length} books in collection</p>
+          <p className="text-muted-foreground mt-1">{totalBookRecords} books in collection</p>
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
@@ -478,22 +614,32 @@ export default function BooksPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 mb-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mb-6">
         <div className="bg-card border border-border rounded-xl px-4 py-3 shadow-card">
-          <p className="text-xs text-muted-foreground">Books in View</p>
-          <p className="text-xl font-semibold text-foreground mt-1">{filtered.length}</p>
+          <p className="text-xs text-muted-foreground">Total Book Records</p>
+          <p className="text-xl font-semibold text-foreground mt-1">{totalBookRecords}</p>
         </div>
         <div className="bg-card border border-border rounded-xl px-4 py-3 shadow-card">
-          <p className="text-xs text-muted-foreground">Available Copies</p>
+          <p className="text-xs text-muted-foreground">Matching Records</p>
+          <p className="text-xl font-semibold text-foreground mt-1">{matchingBookRecords}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl px-4 py-3 shadow-card">
+          <p className="text-xs text-muted-foreground">Visible Available Copies</p>
           <p className="text-xl font-semibold text-accent-foreground mt-1">{availableCopies}</p>
         </div>
         <div className="bg-card border border-border rounded-xl px-4 py-3 shadow-card">
-          <p className="text-xs text-muted-foreground">Issued Copies</p>
+          <p className="text-xs text-muted-foreground">Visible Issued Copies</p>
           <p className="text-xl font-semibold text-secondary mt-1">{issuedCopies}</p>
         </div>
       </div>
 
       <div className="space-y-3 mb-6">
+        {tableLoading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-secondary" />
+            Updating books...
+          </div>
+        )}
         {paginated.map((b) => {
           const title = safeText(b.title, "Untitled Book");
           const author = safeText(b.author, "Unknown Author");
@@ -577,7 +723,7 @@ export default function BooksPage() {
       )}
 
       {/* Pagination */}
-      {filtered.length > perPage && (
+      {matchingBookRecords > perPage && (
         <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => setPage(Math.max(1, currentPage - 1))}

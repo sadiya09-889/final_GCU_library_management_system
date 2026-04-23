@@ -55,11 +55,11 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
     const headers = [
       "title", "sub_title", "author", "author2", "isbn", "category",
       "book_number", "class_number", "edition", "place_of_publication",
-      "name_of_publication", "year_of_publication", "total", "available"
+      "name_of_publication", "year_of_publication", "accession_no", "total", "available"
     ];
     
     const csv = headers.join(",") + "\r\n" +
-      "Sample Title,Subtitle,Author Name,,ISBN123,Fiction,BK001,FIC-001,1st,New York,ABC Publishers,2024,5,5";
+      "Sample Title,Subtitle,Author Name,,ISBN123,Fiction,BK001,FIC-001,1st,New York,ABC Publishers,2024,ACC001,5,5";
     
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

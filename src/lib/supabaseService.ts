@@ -25,6 +25,21 @@ export interface BulkUploadResult {
     errors: Array<{ row: number; bookNumber: string; error: string }>;
 }
 
+export interface FetchBooksPageParams {
+    page: number;
+    perPage: number;
+    search?: string;
+    category?: string;
+    status?: "All" | "Available" | "Issued" | "Out of Stock";
+    yearFilter?: "All" | "2020-2025" | "2015-2019" | "Before 2015";
+    dateFilter?: "All" | "Last 30 Days" | "Last 6 Months";
+}
+
+export interface FetchBooksPageResult {
+    books: Book[];
+    total: number;
+}
+
 function sanitizeText(value: unknown, fallback = ""): string {
     if (typeof value !== "string") return fallback;
     const trimmed = value.trim();
@@ -53,6 +68,87 @@ function sanitizeDate(value: unknown): string | null {
     const parsed = new Date(trimmed);
     if (Number.isNaN(parsed.getTime())) return null;
     return parsed.toISOString().split("T")[0];
+}
+
+function normalizeUniqueField(value: unknown): string {
+    return sanitizeText(value).toLowerCase();
+}
+
+function getBookConstraintMessage(error: unknown, fallback: string): string {
+    const message = getErrorMessage(error, fallback);
+    const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.includes("books_book_number_unique") || lowerMessage.includes("book_number")) {
+        return "Book number already exists";
+    }
+
+    if (lowerMessage.includes("books_accession_no_unique") || lowerMessage.includes("accession_no")) {
+        return "Accession number already exists";
+    }
+
+    if (lowerMessage.includes("duplicate key")) {
+        return "A book with the same unique identifier already exists";
+    }
+
+    return message;
+}
+
+async function fetchAllBookIdentityRows(pageSize = 1000) {
+    const effectivePageSize = Math.max(1, Math.min(1000, Math.floor(pageSize)));
+    const all: Array<Pick<Book, "id" | "book_number" | "accession_no">> = [];
+
+    for (let offset = 0; ; offset += effectivePageSize) {
+        const { data, error } = await supabase
+            .from("books")
+            .select("id, book_number, accession_no")
+            .order("id")
+            .range(offset, offset + effectivePageSize - 1);
+
+        if (error) throw error;
+        const batch = (data ?? []) as Array<Pick<Book, "id" | "book_number" | "accession_no">>;
+        all.push(...batch);
+
+        if (batch.length < effectivePageSize) break;
+    }
+
+    return all;
+}
+
+async function hasBookConflict(field: "book_number" | "accession_no", value: string, excludeId?: string) {
+    if (!value) return false;
+
+    let query = supabase
+        .from("books")
+        .select("id")
+        .eq(field, value)
+        .limit(1);
+
+    if (excludeId) {
+        query = query.neq("id", excludeId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data ?? []).length > 0;
+}
+
+async function validateBookForSave(book: Partial<Omit<Book, "id">>, excludeId?: string) {
+    const title = sanitizeText(book.title);
+    const author = sanitizeText(book.author);
+    const bookNumber = sanitizeText(book.book_number);
+    const accessionNo = sanitizeText(book.accession_no);
+
+    if (!title) throw new Error("Title is required");
+    if (!author) throw new Error("Author is required");
+    if (!bookNumber) throw new Error("Book number is required");
+
+    if (await hasBookConflict("book_number", bookNumber, excludeId)) {
+        throw new Error("Book number already exists");
+    }
+
+    if (accessionNo && await hasBookConflict("accession_no", accessionNo, excludeId)) {
+        throw new Error("Accession number already exists");
+    }
 }
 
 function normalizeUploadBook(book: Partial<Book>): Partial<Omit<Book, "id">> {
@@ -98,10 +194,15 @@ export async function bulkAddBooks(books: Partial<Book>[]): Promise<BulkUploadRe
     const validBookRows: number[] = [];
 
     // Step 1: Validate all books and separate valid from invalid
-    const { data: existingBooks } = await supabase.from("books").select("book_number");
+    const existingBooks = await fetchAllBookIdentityRows();
     const existingNumbers = new Set(
-        (existingBooks ?? [])
+        existingBooks
             .map((b) => sanitizeText(b.book_number).toLowerCase())
+            .filter(Boolean),
+    );
+    const existingAccessions = new Set(
+        existingBooks
+            .map((b) => sanitizeText(b.accession_no).toLowerCase())
             .filter(Boolean),
     );
 
@@ -111,7 +212,9 @@ export async function bulkAddBooks(books: Partial<Book>[]): Promise<BulkUploadRe
         const title = sanitizeText(book.title);
         const author = sanitizeText(book.author);
         const bookNumber = sanitizeText(book.book_number);
-        const normalizedBookNumber = bookNumber.toLowerCase();
+        const accessionNo = sanitizeText(book.accession_no);
+        const normalizedBookNumber = normalizeUniqueField(bookNumber);
+        const normalizedAccessionNo = normalizeUniqueField(accessionNo);
 
         if (!title) {
             errors.push({ row: rowNum, bookNumber: bookNumber || "N/A", error: "Title is required" });
@@ -129,10 +232,17 @@ export async function bulkAddBooks(books: Partial<Book>[]): Promise<BulkUploadRe
             errors.push({ row: rowNum, bookNumber, error: "Book number already exists" });
             continue;
         }
+        if (normalizedAccessionNo && existingAccessions.has(normalizedAccessionNo)) {
+            errors.push({ row: rowNum, bookNumber, error: "Accession number already exists" });
+            continue;
+        }
 
         validBooks.push(normalizeBookPayload(book));
         validBookRows.push(rowNum);
         existingNumbers.add(normalizedBookNumber);
+        if (normalizedAccessionNo) {
+            existingAccessions.add(normalizedAccessionNo);
+        }
     }
 
     // Step 2: Batch insert all valid books at once
@@ -154,7 +264,7 @@ export async function bulkAddBooks(books: Partial<Book>[]): Promise<BulkUploadRe
                     errors.push({
                         row: rowNumber,
                         bookNumber: sanitizeText(rowPayload.book_number, "N/A"),
-                        error: getErrorMessage(rowError, "Failed to insert row"),
+                        error: getBookConstraintMessage(rowError, "Failed to insert row"),
                     });
                 } else {
                     successful += 1;
@@ -270,27 +380,215 @@ export function parseBooksCsv(csvText: string): Partial<Book>[] {
 // ─── Books ──────────────────────────────────────────────
 
 export async function fetchBooks(): Promise<Book[]> {
+    return fetchAllBooks();
+}
+
+/**
+ * Fetch all books by paging through Supabase's max-rows limit (commonly 1000).
+ * Prefer this only for screens that truly need the full dataset.
+ */
+export async function fetchAllBooks(pageSize = 1000): Promise<Book[]> {
+    const effectivePageSize = Math.max(1, Math.min(1000, Math.floor(pageSize)));
+    const all: Book[] = [];
+
+    for (let offset = 0; ; offset += effectivePageSize) {
+        const { data, error } = await supabase
+            .from("books")
+            .select("*")
+            .order("title")
+            .order("id")
+            .range(offset, offset + effectivePageSize - 1);
+
+        if (error) throw error;
+        const batch = (data ?? []) as Book[];
+        all.push(...batch);
+
+        if (batch.length < effectivePageSize) break;
+    }
+
+    return all;
+}
+
+export async function fetchBookRecordCount(): Promise<number> {
+    const { count, error } = await supabase
+        .from("books")
+        .select("id", { count: "exact", head: true });
+
+    if (error) throw error;
+    return count ?? 0;
+}
+
+export async function fetchAvailableBookRecordCount(): Promise<number> {
+    const { count, error } = await supabase
+        .from("books")
+        .select("id", { count: "exact", head: true })
+        .gt("available", 0);
+
+    if (error) throw error;
+    return count ?? 0;
+}
+
+export async function fetchBooksForDashboard(pageSize = 1000): Promise<Book[]> {
+    const effectivePageSize = Math.max(1, Math.min(1000, Math.floor(pageSize)));
+    const all: Book[] = [];
+
+    for (let offset = 0; ; offset += effectivePageSize) {
+        const { data, error } = await supabase
+            .from("books")
+            .select("id, title, author, category, available, total, book_number, date_of_purchase, created_at")
+            .order("title")
+            .order("id")
+            .range(offset, offset + effectivePageSize - 1);
+
+        if (error) throw error;
+        const batch = (data ?? []) as Book[];
+        all.push(...batch);
+
+        if (batch.length < effectivePageSize) break;
+    }
+
+    return all;
+}
+
+export async function fetchBookCategories(pageSize = 1000): Promise<string[]> {
+    const effectivePageSize = Math.max(1, Math.min(1000, Math.floor(pageSize)));
+    const categories = new Set<string>();
+
+    for (let offset = 0; ; offset += effectivePageSize) {
+        const { data, error } = await supabase
+            .from("books")
+            .select("category")
+            .order("category")
+            .range(offset, offset + effectivePageSize - 1);
+
+        if (error) throw error;
+        const batch = (data ?? []) as Array<Pick<Book, "category">>;
+
+        for (const row of batch) {
+            const category = sanitizeText(row.category);
+            if (category) categories.add(category);
+        }
+
+        if (batch.length < effectivePageSize) break;
+    }
+
+    return ["All", ...Array.from(categories).sort((a, b) => a.localeCompare(b))];
+}
+
+export async function fetchBooksPage(params: FetchBooksPageParams): Promise<FetchBooksPageResult> {
+    const page = Math.max(1, Math.floor(params.page || 1));
+    const perPage = Math.max(1, Math.min(1000, Math.floor(params.perPage || 10)));
+    const from = (page - 1) * perPage;
+    const to = from + perPage - 1;
+    const search = sanitizeText(params.search);
+    const category = sanitizeText(params.category);
+    const status = params.status || "All";
+    const yearFilter = params.yearFilter || "All";
+    const dateFilter = params.dateFilter || "All";
+
+    let query = supabase
+        .from("books")
+        .select("*", { count: "exact" });
+
+    if (search) {
+        const escaped = search.replace(/[%_]/g, (match) => `\\${match}`);
+        query = query.or([
+            `title.ilike.%${escaped}%`,
+            `author.ilike.%${escaped}%`,
+            `isbn.ilike.%${escaped}%`,
+            `book_number.ilike.%${escaped}%`,
+            `category.ilike.%${escaped}%`,
+        ].join(","));
+    }
+
+    if (category && category !== "All") {
+        query = query.eq("category", category);
+    }
+
+    if (status === "Available") {
+        query = query.gt("available", 0);
+    } else if (status === "Out of Stock") {
+        query = query.eq("available", 0);
+    }
+
+    if (yearFilter === "2020-2025") {
+        query = query.gte("year_of_publication", 2020).lte("year_of_publication", 2025);
+    } else if (yearFilter === "2015-2019") {
+        query = query.gte("year_of_publication", 2015).lte("year_of_publication", 2019);
+    } else if (yearFilter === "Before 2015") {
+        query = query.lt("year_of_publication", 2015);
+    }
+
+    if (dateFilter === "Last 30 Days") {
+        const since = new Date();
+        since.setDate(since.getDate() - 30);
+        query = query.gte("date_of_purchase", since.toISOString().split("T")[0]);
+    } else if (dateFilter === "Last 6 Months") {
+        const since = new Date();
+        since.setDate(since.getDate() - 180);
+        query = query.gte("date_of_purchase", since.toISOString().split("T")[0]);
+    }
+
+    const { data, error, count } = await query
+        .order("title")
+        .order("id")
+        .range(from, to);
+
+    if (error) throw error;
+    return { books: (data ?? []) as Book[], total: count ?? 0 };
+}
+
+export async function fetchBookByBookNumber(bookNumber: string): Promise<Book | null> {
+    const normalized = typeof bookNumber === "string" ? bookNumber.trim() : "";
+    if (!normalized) return null;
+
     const { data, error } = await supabase
         .from("books")
         .select("*")
-        .order("title");
+        .eq("book_number", normalized)
+        .maybeSingle();
+
     if (error) throw error;
-    return data ?? [];
+    return (data as Book | null) ?? null;
+}
+
+export async function fetchAvailableBooks(limit = 3): Promise<Book[]> {
+    const safeLimit = Math.max(1, Math.min(1000, Math.floor(limit)));
+    const { data, error } = await supabase
+        .from("books")
+        .select("*")
+        .gt("available", 0)
+        .order("available", { ascending: false })
+        .limit(safeLimit);
+
+    if (error) throw error;
+    return (data ?? []) as Book[];
 }
 
 export async function addBook(book: Omit<Book, "id">): Promise<Book> {
-    const payload = normalizeBookPayload(book);
+    const normalizedBook = normalizeUploadBook(book);
+    await validateBookForSave(normalizedBook);
+    const payload = normalizeBookPayload(normalizedBook);
 
     const { data, error } = await supabase
         .from("books")
         .insert(payload)
         .select()
         .single();
-    if (error) throw error;
+    if (error) throw new Error(getBookConstraintMessage(error, "Failed to add book"));
     return data;
 }
 
 export async function updateBook(id: string, updates: Partial<Book>): Promise<Book> {
+    const { data: existingBook, error: existingBookError } = await supabase
+        .from("books")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+    if (existingBookError) throw existingBookError;
+
+    await validateBookForSave({ ...(existingBook as Book), ...updates }, id);
     const payload = normalizeBookPayload(updates);
 
     const { data, error } = await supabase
@@ -299,7 +597,7 @@ export async function updateBook(id: string, updates: Partial<Book>): Promise<Bo
         .eq("id", id)
         .select()
         .single();
-    if (error) throw error;
+    if (error) throw new Error(getBookConstraintMessage(error, "Failed to update book"));
     return data;
 }
 
