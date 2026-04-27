@@ -278,7 +278,7 @@ export default function DashboardPage() {
   const available = availableBookRecordCount;
   const activeIssuedBooks = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue");
   const inventoryIssued = Math.max(totalBooks - available, 0);
-  const issued = Math.max(activeIssuedBooks.length, inventoryIssued);
+  const issued = inventoryIssued;
   const inventoryOnlyIssued = Math.max(inventoryIssued - activeIssuedBooks.length, 0);
   const overdue = activeIssuedBooks.filter(i => i.status === "overdue").length;
   const availableBookRecords = books.filter((b) => getEffectiveAvailableCount(b) > 0);
