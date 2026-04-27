@@ -276,8 +276,11 @@ export default function DashboardPage() {
 
   const totalBooks = bookRecordCount;
   const available = availableBookRecordCount;
-  const issued = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue").length;
-  const overdue = issuedBooks.filter(i => i.status === "overdue").length;
+  const activeIssuedBooks = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue");
+  const inventoryIssued = Math.max(totalBooks - available, 0);
+  const issued = Math.max(activeIssuedBooks.length, inventoryIssued);
+  const inventoryOnlyIssued = Math.max(inventoryIssued - activeIssuedBooks.length, 0);
+  const overdue = activeIssuedBooks.filter(i => i.status === "overdue").length;
   const availableBookRecords = books.filter((b) => getEffectiveAvailableCount(b) > 0);
   const highlightedBooks = previewBooks.length > 0 ? previewBooks : availableBookRecords.slice(0, isStudent ? 3 : 4);
 
@@ -560,12 +563,19 @@ export default function DashboardPage() {
                           {issued === 0 ? (
                             <p className="text-sm text-muted-foreground">No issued books</p>
                           ) : (
-                            issuedBooks.filter(i => i.status === "issued").map(b => (
-                              <div key={b.id} className="text-sm p-2 bg-muted rounded">
-                                <p className="font-medium text-foreground">{b.book_title}</p>
-                                <p className="text-xs text-muted-foreground">{b.student_name} - Due: {b.due_date}</p>
-                              </div>
-                            ))
+                            <>
+                              {activeIssuedBooks.map(b => (
+                                <div key={b.id} className="text-sm p-2 bg-muted rounded">
+                                  <p className="font-medium text-foreground">{b.book_title}</p>
+                                  <p className="text-xs text-muted-foreground">{b.student_name} - Due: {b.due_date}</p>
+                                </div>
+                              ))}
+                              {inventoryOnlyIssued > 0 && (
+                                <p className="text-xs text-muted-foreground px-1">
+                                  {inventoryOnlyIssued} record(s) are unavailable in inventory but have no active issue entry.
+                                </p>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
