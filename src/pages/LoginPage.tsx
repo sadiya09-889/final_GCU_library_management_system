@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { BookOpen, Eye, EyeOff, GraduationCap } from "lucide-react";
 import campusImage from "@/assets/campus.jpeg";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { syncCurrentUserContext } from "@/lib/accountRole";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -27,8 +28,8 @@ export default function LoginPage() {
       email: normalizedEmail,
       password,
     });
-    setLoading(false);
     if (authError) {
+      setLoading(false);
       const message = (authError.message || "").toLowerCase();
       if (authError.message === "Failed to fetch" || authError.message.includes("fetch")) {
         setError("Cannot connect to the server. Please check your internet connection or try again later.");
@@ -40,6 +41,12 @@ export default function LoginPage() {
         setError(authError.message);
       }
       return;
+    }
+
+    try {
+      await syncCurrentUserContext();
+    } finally {
+      setLoading(false);
     }
     navigate("/dashboard");
   };
@@ -75,7 +82,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Library Portal</h1>
-              <p className="text-muted-foreground text-sm">Sign in to continue</p>
+              <p className="text-muted-foreground text-sm">Students use registered email with reg no, faculty use GCU email</p>
             </div>
           </div>
 

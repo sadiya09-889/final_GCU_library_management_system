@@ -3,8 +3,10 @@ import { useNavigate, Link } from "react-router-dom";
 import { BookOpen, Eye, EyeOff, GraduationCap } from "lucide-react";
 import campusImage from "@/assets/campus.jpeg";
 import { supabase } from "@/lib/supabase";
+import { isFacultyEmail } from "@/lib/accountRole";
 
 export default function SignupPage() {
+  const [accountType, setAccountType] = useState<"student" | "faculty">("student");
   const [name, setName] = useState("");
   const [regNo, setRegNo] = useState("");
   const [email, setEmail] = useState("");
@@ -29,13 +31,20 @@ export default function SignupPage() {
       return;
     }
 
-    if (!trimmedRegNo) {
-      setError("Reg No is required.");
-      return;
+    if (accountType === "student") {
+      if (!trimmedRegNo) {
+        setError("Reg No is required for student accounts.");
+        return;
+      }
+
+      if (!/^[A-Za-z0-9/-]+$/.test(trimmedRegNo)) {
+        setError("Reg No can contain letters, numbers, - and / only.");
+        return;
+      }
     }
 
-    if (!/^[A-Za-z0-9\-\/]+$/.test(trimmedRegNo)) {
-      setError("Reg No can contain letters, numbers, - and / only.");
+    if (accountType === "faculty" && !isFacultyEmail(normalizedEmail)) {
+      setError("Faculty accounts must use a valid @gcu.edu.in email address.");
       return;
     }
 
@@ -53,7 +62,11 @@ export default function SignupPage() {
       email: normalizedEmail,
       password,
       options: {
-        data: { name: trimmedName, role: "student", reg_no: trimmedRegNo },
+        data: {
+          name: trimmedName,
+          role: accountType,
+          reg_no: accountType === "student" ? trimmedRegNo : "",
+        },
       },
     });
     setLoading(false);
@@ -102,11 +115,31 @@ export default function SignupPage() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Create Account</h1>
-              <p className="text-muted-foreground text-sm">We'll send a verification code to your email</p>
+              <p className="text-muted-foreground text-sm">Create a student or faculty account and verify it by email</p>
             </div>
           </div>
 
           <form onSubmit={handleSignup} className="mt-8 space-y-5">
+            <div>
+              <p className="block text-sm font-medium text-foreground mb-2">Account Type</p>
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
+                <button
+                  type="button"
+                  onClick={() => setAccountType("student")}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${accountType === "student" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Student
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAccountType("faculty")}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${accountType === "faculty" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Faculty
+                </button>
+              </div>
+            </div>
+
             {/* Full Name */}
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">Full Name</label>
@@ -120,19 +153,20 @@ export default function SignupPage() {
               />
             </div>
 
-            {/* Registration Number */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Reg No</label>
-              <input
-                type="text"
-                value={regNo}
-                onChange={e => setRegNo(e.target.value)}
-                required
-                maxLength={30}
-                placeholder="e.g. 22CS001"
-                className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
-              />
-            </div>
+            {accountType === "student" && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Reg No</label>
+                <input
+                  type="text"
+                  value={regNo}
+                  onChange={e => setRegNo(e.target.value)}
+                  required
+                  maxLength={30}
+                  placeholder="e.g. 23BTRE101"
+                  className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
+                />
+              </div>
+            )}
 
             {/* Email */}
             <div>
@@ -142,9 +176,14 @@ export default function SignupPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                placeholder="you@example.com"
+                placeholder={accountType === "faculty" ? "ravi2345@gcu.edu.in" : "student@gcu.edu.in"}
                 className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {accountType === "faculty"
+                  ? "Faculty accounts are identified by GCU email."
+                  : "Student accounts are identified by Reg No and email."}
+              </p>
             </div>
 
             {/* Password */}
@@ -198,7 +237,7 @@ export default function SignupPage() {
               disabled={loading}
               className="w-full py-3 rounded-lg font-semibold gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "Sending OTP..." : "Create Account"}
+              {loading ? "Sending OTP..." : `Create ${accountType === "faculty" ? "Faculty" : "Student"} Account`}
             </button>
           </form>
 

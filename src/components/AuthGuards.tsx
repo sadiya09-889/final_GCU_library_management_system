@@ -1,13 +1,12 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
-
-type Role = "admin" | "librarian" | "student";
+import { isAppRole, type AppRole, resolveCurrentUserContext } from "@/lib/accountRole";
 
 interface GuardState {
   loading: boolean;
   isAuthenticated: boolean;
-  role: Role | null;
+  role: AppRole | null;
 }
 
 interface RequireAuthProps {
@@ -15,12 +14,8 @@ interface RequireAuthProps {
 }
 
 interface RequireRoleProps {
-  allowedRoles: Role[];
+  allowedRoles: AppRole[];
   children: ReactNode;
-}
-
-function isValidRole(value: unknown): value is Role {
-  return value === "admin" || value === "librarian" || value === "student";
 }
 
 function useGuardState(): GuardState {
@@ -44,25 +39,14 @@ function useGuardState(): GuardState {
         return;
       }
 
-      const metadataRole = session.user.user_metadata?.role;
-      if (isValidRole(metadataRole)) {
-        if (isMounted) {
-          setState({ loading: false, isAuthenticated: true, role: metadataRole });
-        }
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle();
+      const resolved = await resolveCurrentUserContext(session.user);
+      const fallbackRole = isAppRole(resolved?.role) ? resolved.role : "student";
 
       if (isMounted) {
         setState({
           loading: false,
           isAuthenticated: true,
-          role: isValidRole(profile?.role) ? profile.role : "student",
+          role: fallbackRole,
         });
       }
     }

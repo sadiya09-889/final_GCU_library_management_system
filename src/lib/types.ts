@@ -38,17 +38,27 @@ export interface IssuedBook {
     book_title: string;
     student_name: string;
     student_id: string;
+    student_email?: string;
     issue_date: string;
     due_date: string;
     return_date?: string;
     status: "issued" | "returned" | "overdue";
+    return_quality_status?: "excellent" | "good" | "minor_damage" | "damaged";
+    return_quality_notes?: string;
+    return_quality_checked_at?: string;
+    return_quality_checklist?: {
+        coverIntact: boolean;
+        pagesIntact: boolean;
+        bindingIntact: boolean;
+        cleanPages: boolean;
+    };
 }
 
 export interface UserProfile {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "librarian" | "student";
+    role: "admin" | "librarian" | "student" | "faculty";
     department?: string;
     contact_number?: string;
     reg_no?: string;
@@ -61,11 +71,11 @@ export const profileUpdateSchema = z.object({
     contact_number: z.string()
         .trim()
         .max(15, "Contact number must be less than 15 characters")
-        .refine((value) => value === "" || /^[+]?[\d\s\-\(\)]{10,15}$/.test(value), "Please enter a valid phone number"),
+        .refine((value) => value === "" || /^[+]?[\d\s-()]{10,15}$/.test(value), "Please enter a valid phone number"),
     reg_no: z.string()
         .trim()
         .max(30, "Reg No must be less than 30 characters")
-        .refine((value) => value === "" || /^[A-Za-z0-9\-\/]+$/.test(value), "Reg No can contain letters, numbers, - and /")
+        .refine((value) => value === "" || /^[A-Za-z0-9/-]+$/.test(value), "Reg No can contain letters, numbers, - and /")
 });
 
 export type ProfileUpdateData = z.infer<typeof profileUpdateSchema>;

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchProfile, updateProfile } from "@/lib/supabaseService";
 import { profileUpdateSchema, type UserProfile, type ProfileUpdateData } from "@/lib/types";
+import { isAppRole } from "@/lib/accountRole";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -20,7 +21,7 @@ function getMetadataValue(value: unknown) {
 }
 
 function getProfileRole(value: unknown): UserProfile["role"] {
-  if (value === "admin" || value === "librarian" || value === "student") {
+  if (isAppRole(value)) {
     return value;
   }
   return "student";
@@ -128,7 +129,7 @@ export default function ProfilePage() {
             name: metadataName,
             email: metadataEmail,
             role,
-            department: role === "admin" ? "Administration" : role === "librarian" ? "Library" : "",
+            department: role === "admin" ? "Administration" : role === "librarian" ? "Library" : role === "faculty" ? "Faculty" : "",
             contact_number: metadataContact,
             reg_no: metadataRegNo,
             join_date: fallbackJoinDate,
@@ -303,30 +304,32 @@ export default function ProfilePage() {
           </div>
 
           {/* Editable contact number field */}
-          <div className="flex items-center gap-3 py-3 border-b border-border">
-            <Hash className="h-5 w-5 text-secondary flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Reg No</p>
-              {editing ? (
-                <div>
-                  <input
-                    type="text"
-                    value={formData.reg_no}
-                    onChange={(e) => handleInputChange("reg_no", e.target.value)}
-                    className="text-sm font-medium text-foreground bg-background border border-border rounded px-2 py-1 mt-1 w-full focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="Enter registration number"
-                  />
-                  {errors.reg_no && (
-                    <p className="text-xs text-destructive mt-1">{errors.reg_no}</p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm font-medium text-foreground">
-                  {formData.reg_no || "Not specified"}
-                </p>
-              )}
+          {profile.role === "student" && (
+            <div className="flex items-center gap-3 py-3 border-b border-border">
+              <Hash className="h-5 w-5 text-secondary flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">Reg No</p>
+                {editing ? (
+                  <div>
+                    <input
+                      type="text"
+                      value={formData.reg_no}
+                      onChange={(e) => handleInputChange("reg_no", e.target.value)}
+                      className="text-sm font-medium text-foreground bg-background border border-border rounded px-2 py-1 mt-1 w-full focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="Enter registration number"
+                    />
+                    {errors.reg_no && (
+                      <p className="text-xs text-destructive mt-1">{errors.reg_no}</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium text-foreground">
+                    {formData.reg_no || "Not specified"}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Editable contact number field */}
           <div className="flex items-center gap-3 py-3 border-b border-border last:border-0">

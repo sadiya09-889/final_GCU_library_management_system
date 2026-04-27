@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, BookOpen, BookCopy, Users, User, LogOut, Menu, X, GraduationCap,
-  Globe, Award, Search, BarChart3, AlertTriangle, Bell, BookMarked, IndianRupee, RotateCcw, Settings
+  Globe, Award, Search, BarChart3, AlertTriangle, Bell, BookMarked, RotateCcw, Briefcase
 } from "lucide-react";
 import gcuLogo from "@/assets/gcu-logo.png";
 import { supabase } from "@/lib/supabase";
+import { syncCurrentUserContext } from "@/lib/accountRole";
 
 interface NavItem {
   label: string;
@@ -15,22 +16,22 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", roles: ["admin", "librarian", "student"] },
+  { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", roles: ["admin", "librarian", "student", "faculty"] },
   { label: "Books", icon: BookOpen, path: "/dashboard/books", roles: ["admin", "librarian"] },
   { label: "Issue Books", icon: BookCopy, path: "/dashboard/issue", roles: ["admin", "librarian"] },
   { label: "Return Books", icon: RotateCcw, path: "/dashboard/return", roles: ["admin", "librarian"] },
   { label: "Overdue Management", icon: AlertTriangle, path: "/dashboard/overdue", roles: ["admin", "librarian"] },
-  { label: "My Books", icon: BookMarked, path: "/dashboard/my-books", roles: ["student"] },
+  { label: "My Books", icon: BookMarked, path: "/dashboard/my-books", roles: ["student", "faculty"] },
 
 
-  { label: "OPAC", icon: Search, path: "/dashboard/opac", roles: ["admin", "librarian", "student"] },
+  { label: "OPAC", icon: Search, path: "/dashboard/opac", roles: ["admin", "librarian", "student", "faculty"] },
   { label: "OPAC", icon: BookOpen, path: "/dashboard/opac", roles: ["admin", "librarian"] },
-  { label: "DELNET", icon: Globe, path: "/dashboard/delnet", roles: ["admin", "librarian", "student"] },
-  { label: "IRINS", icon: Award, path: "/dashboard/irins", roles: ["admin", "librarian"] },
+  { label: "DELNET", icon: Globe, path: "/dashboard/delnet", roles: ["admin", "librarian", "student", "faculty"] },
+  { label: "IRINS", icon: Award, path: "/dashboard/irins", roles: ["admin", "librarian", "faculty"] },
   { label: "Reports", icon: BarChart3, path: "/dashboard/reports", roles: ["admin", "librarian"] },
   { label: "Users", icon: Users, path: "/dashboard/users", roles: ["admin"] },
-  { label: "Notifications", icon: Bell, path: "/dashboard/notifications", roles: ["student"] },
-  { label: "Profile", icon: User, path: "/dashboard/profile", roles: ["admin", "librarian", "student"] },
+  { label: "Notifications", icon: Bell, path: "/dashboard/notifications", roles: ["student", "faculty"] },
+  { label: "Profile", icon: User, path: "/dashboard/profile", roles: ["admin", "librarian", "student", "faculty"] },
 ];
 
 export default function DashboardLayout() {
@@ -47,20 +48,35 @@ export default function DashboardLayout() {
         navigate("/login");
         return;
       }
-      const u = session.user;
-      const userData = {
-        id: u.id || "",
-        name: u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
-        role: u.user_metadata?.role || "student",
-        email: u.email || "",
-      };
-      setUser(userData);
-      sessionStorage.setItem("gcu_user", JSON.stringify(userData));
+
+      syncCurrentUserContext(session.user as import("@supabase/supabase-js").User)
+        .then((resolved) => {
+          const u = session.user;
+          const userData = {
+            id: u.id || "",
+            name: resolved?.name || u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
+            role: resolved?.role || u.user_metadata?.role || "student",
+            email: resolved?.email || u.email || "",
+          };
+          setUser(userData);
+          sessionStorage.setItem("gcu_user", JSON.stringify(userData));
+        })
+        .catch(() => {
+          const u = session.user;
+          const fallbackUserData = {
+            id: u.id || "",
+            name: u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
+            role: u.user_metadata?.role || "student",
+            email: u.email || "",
+          };
+          setUser(fallbackUserData);
+          sessionStorage.setItem("gcu_user", JSON.stringify(fallbackUserData));
+        })
+        .finally(() => setLoading(false));
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserFromSession(session);
-      setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -145,12 +161,14 @@ export default function DashboardLayout() {
             <Menu className="h-6 w-6" />
           </button>
           <div className="flex-1" />
-          <button onClick={() => navigate("/dashboard/notifications")} className="relative p-2 rounded-lg hover:bg-muted transition-colors">
-            <Bell className="h-5 w-5 text-muted-foreground" />
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-destructive" />
-          </button>
+          {(user.role === "student" || user.role === "faculty") && (
+            <button onClick={() => navigate("/dashboard/notifications")} className="relative p-2 rounded-lg hover:bg-muted transition-colors">
+              <Bell className="h-5 w-5 text-muted-foreground" />
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-destructive" />
+            </button>
+          )}
           <div className="flex items-center gap-2 text-sm">
-            <GraduationCap className="h-5 w-5 text-secondary" />
+            {user.role === "faculty" ? <Briefcase className="h-5 w-5 text-secondary" /> : <GraduationCap className="h-5 w-5 text-secondary" />}
             <span className="font-medium text-foreground hidden sm:inline">{user.name}</span>
           </div>
         </header>

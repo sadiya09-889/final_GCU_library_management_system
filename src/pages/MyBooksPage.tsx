@@ -1,25 +1,35 @@
 import { useState, useEffect } from "react";
 import { BookOpen, RefreshCw, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import type { IssuedBook } from "@/lib/types";
-import { fetchIssuedBooks } from "@/lib/supabaseService";
+import { fetchIssuedBooksByStudent } from "@/lib/supabaseService";
+import { supabase } from "@/lib/supabase";
 
 export default function MyBooksPage() {
   const [renewals, setRenewals] = useState<Record<string, number>>({});
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
   const [loading, setLoading] = useState(true);
   const MAX_RENEWALS = 2;
-
-  const DEMO_STUDENT_ID = "a7d58a28-57dd-485a-aa70-fd883e85bfff";
+  const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
 
   useEffect(() => {
-    fetchIssuedBooks()
-      .then(data => {
-        const myBooks = data.filter(i => i.student_id === DEMO_STUDENT_ID);
+    supabase.auth.getUser()
+      .then(async ({ data: { user: authUser } }) => {
+        const metadataRegNo =
+          typeof authUser?.user_metadata?.reg_no === "string"
+            ? authUser.user_metadata.reg_no
+            : "";
+
+        const myBooks = await fetchIssuedBooksByStudent({
+          id: typeof user?.id === "string" ? user.id : "",
+          email: typeof user?.email === "string" ? user.email : "",
+          regNo: metadataRegNo,
+        });
+
         setIssuedBooks(myBooks);
       })
       .catch(() => { })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.email, user?.id]);
 
   const handleRenew = (id: string) => {
     const count = renewals[id] || 0;

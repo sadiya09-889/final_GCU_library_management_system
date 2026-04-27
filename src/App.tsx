@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardLayout from "./components/DashboardLayout";
-import DashboardPage from "./pages/DashboardPage";
 import BooksPage from "./pages/BooksPage";
 import IssueBookPage from "./pages/IssueBookPage";
 import UsersPage from "./pages/UsersPage";
@@ -22,6 +21,7 @@ import FineDetailsPage from "./pages/FineDetailsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import SignupPage from "./pages/SignupPage";
 import VerifyOTPPage from "./pages/VerifyOTPPage";
+import RoleHomePage from "./pages/RoleHomePage";
 import NotFound from "./pages/NotFound";
 import { RequireAuth, RequireRole } from "./components/AuthGuards";
 
@@ -46,7 +46,7 @@ const App = () => (
               </RequireAuth>
             )}
           >
-            <Route index element={<DashboardPage />} />
+            <Route index element={<RoleHomePage />} />
             <Route
               path="books"
               element={(
@@ -93,7 +93,7 @@ const App = () => (
             <Route
               path="irins"
               element={(
-                <RequireRole allowedRoles={["admin", "librarian"]}>
+                <RequireRole allowedRoles={["admin", "librarian", "faculty"]}>
                   <IRINSPage />
                 </RequireRole>
               )}
@@ -109,7 +109,7 @@ const App = () => (
             <Route
               path="my-books"
               element={(
-                <RequireRole allowedRoles={["student"]}>
+                <RequireRole allowedRoles={["student", "faculty"]}>
                   <MyBooksPage />
                 </RequireRole>
               )}
@@ -117,7 +117,7 @@ const App = () => (
             <Route
               path="fines"
               element={(
-                <RequireRole allowedRoles={["student"]}>
+                <RequireRole allowedRoles={["student", "faculty"]}>
                   <FineDetailsPage />
                 </RequireRole>
               )}
@@ -125,7 +125,7 @@ const App = () => (
             <Route
               path="notifications"
               element={(
-                <RequireRole allowedRoles={["student"]}>
+                <RequireRole allowedRoles={["student", "faculty"]}>
                   <NotificationsPage />
                 </RequireRole>
               )}

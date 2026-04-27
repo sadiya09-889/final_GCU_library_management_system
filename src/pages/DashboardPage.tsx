@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
@@ -103,7 +103,7 @@ export default function DashboardPage() {
     return Math.min(storedAvailable, computedAvailable);
   };
 
-  const loadDetailedBooks = async () => {
+  const loadDetailedBooks = useCallback(async () => {
     setBooksLoading(true);
     try {
       const result = await fetchBooksForDashboard();
@@ -113,9 +113,9 @@ export default function DashboardPage() {
     } finally {
       setBooksLoading(false);
     }
-  };
+  }, []);
 
-  const loadDashboardData = async (options?: { refreshDetailedBooks?: boolean }) => {
+  const loadDashboardData = useCallback(async (options?: { refreshDetailedBooks?: boolean }) => {
     try {
       try {
         await checkAndUpdateOverdueBooks();
@@ -173,7 +173,7 @@ export default function DashboardPage() {
         void loadDetailedBooks();
       }
     }
-  };
+  }, [canViewUsersAnalytics, isStudent, loadDetailedBooks]);
 
   useEffect(() => {
     void loadDashboardData({ refreshDetailedBooks: true });
@@ -209,7 +209,7 @@ export default function DashboardPage() {
       window.removeEventListener("focus", handleWindowFocus);
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [loadDashboardData]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,7 +230,7 @@ export default function DashboardPage() {
 
   const handleIssueBook = async () => {
     if (!issueForm.studentId.trim()) {
-      toast.error("Please enter Reg No");
+      toast.error("Please enter Student Reg No or Faculty Email");
       return;
     }
     if (!selectedBookForIssue) return;
@@ -238,7 +238,7 @@ export default function DashboardPage() {
     setIssuingSaving(true);
     try {
       const profile = await fetchProfile(issueForm.studentId);
-      const resolvedStudentName = profile?.name?.trim() || `Student (${issueForm.studentId})`;
+      const resolvedStudentName = profile?.name?.trim() || `Member (${issueForm.studentId})`;
 
       const today = new Date();
       const due = new Date(today);
@@ -769,11 +769,11 @@ export default function DashboardPage() {
             {/* Form */}
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No / Faculty Email</label>
                 <input 
                   value={issueForm.studentId} 
                   onChange={e => setIssueForm({ studentId: e.target.value })}
-                  placeholder="Enter student registration number"
+                  placeholder="Enter student reg no or faculty email"
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" 
                 />
               </div>

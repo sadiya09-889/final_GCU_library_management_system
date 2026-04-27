@@ -52,9 +52,14 @@ create table if not exists public.issued_books (
   book_title text not null,
   student_name text not null,
   student_id text not null,
+  student_email text,
   issue_date date not null default current_date,
   due_date date not null,
   return_date date,
+  return_quality_status text check (return_quality_status in ('excellent', 'good', 'minor_damage', 'damaged')),
+  return_quality_notes text,
+  return_quality_checked_at timestamptz,
+  return_quality_checklist jsonb,
   status text not null default 'issued' check (status in ('issued', 'returned', 'overdue')),
   created_at timestamptz default now()
 );
@@ -64,7 +69,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   name text not null,
   email text not null,
-  role text not null default 'student' check (role in ('admin', 'librarian', 'student')),
+  role text not null default 'student' check (role in ('admin', 'librarian', 'student', 'faculty')),
   department text,
   contact_number text,
   reg_no text,
@@ -171,8 +176,12 @@ begin
     coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
     new.email,
     case
-      when coalesce(new.raw_user_meta_data->>'role', '') in ('admin', 'librarian', 'student')
+      when coalesce(new.raw_user_meta_data->>'role', '') in ('admin', 'librarian', 'student', 'faculty')
         then new.raw_user_meta_data->>'role'
+      when nullif(new.raw_user_meta_data->>'reg_no', '') is not null
+        then 'student'
+      when lower(coalesce(new.email, '')) like '%@gcu.edu.in'
+        then 'faculty'
       else 'student'
     end,
     nullif(new.raw_user_meta_data->>'contact_number', ''),

@@ -2,20 +2,35 @@ import { useState, useEffect } from "react";
 import { Search, BookOpen, CheckCircle, Receipt, IndianRupee, Loader2, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import type { IssuedBook, Book } from "@/lib/types";
-import { fetchIssuedBooks, returnBook, fetchBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
+import { fetchIssuedBooks, returnBook, fetchBooks, issueBook, fetchProfile, type ReturnQualityCheck } from "@/lib/supabaseService";
 
 const FEE_PER_DAY = 2;
+
+const defaultQualityForm: ReturnQualityCheck = {
+  status: "good",
+  notes: "",
+  checklist: {
+    coverIntact: true,
+    pagesIntact: true,
+    bindingIntact: true,
+    cleanPages: true,
+  },
+};
 
 export default function ReturnBooksPage() {
   const [issues, setIssues] = useState<IssuedBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [receipt, setReceipt] = useState<{ book: string; student: string; penaltyFee: number } | null>(null);
+  const [receipt, setReceipt] = useState<{ book: string; student: string; penaltyFee: number; qualityStatus: ReturnQualityCheck["status"] } | null>(null);
   const [books, setBooks] = useState<Book[]>([]);
   const [issueModalOpen, setIssueModalOpen] = useState(false);
   const [selectedBookForIssue, setSelectedBookForIssue] = useState<Book | null>(null);
   const [issueForm, setIssueForm] = useState({ studentId: "" });
   const [issuingSaving, setIssuingSaving] = useState(false);
+  const [qualityCheckOpen, setQualityCheckOpen] = useState(false);
+  const [selectedIssueForReturn, setSelectedIssueForReturn] = useState<IssuedBook | null>(null);
+  const [qualityForm, setQualityForm] = useState<ReturnQualityCheck>(defaultQualityForm);
+  const [returnSaving, setReturnSaving] = useState(false);
 
   const loadIssues = async () => {
     try {
@@ -38,18 +53,37 @@ export default function ReturnBooksPage() {
       i.student_id.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const handleReturn = async (issue: IssuedBook) => {
+  const openReturnQualityCheck = (issue: IssuedBook) => {
+    setSelectedIssueForReturn(issue);
+    setQualityForm(defaultQualityForm);
+    setQualityCheckOpen(true);
+  };
+
+  const handleReturn = async (issue: IssuedBook, qualityCheck: ReturnQualityCheck) => {
     const due = new Date(issue.due_date);
     const today = new Date();
     const daysOverdue = Math.max(0, Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
     const penaltyFee = daysOverdue * FEE_PER_DAY;
 
     try {
-      await returnBook(issue.id);
-      setReceipt({ book: issue.book_title, student: issue.student_name, penaltyFee });
+      await returnBook(issue.id, qualityCheck);
+      setReceipt({ book: issue.book_title, student: issue.student_name, penaltyFee, qualityStatus: qualityCheck.status });
+      setQualityCheckOpen(false);
+      setSelectedIssueForReturn(null);
       await loadIssues();
     } catch {
       toast.error("Failed to return book");
+    }
+  };
+
+  const confirmReturnWithQualityCheck = async () => {
+    if (!selectedIssueForReturn) return;
+
+    setReturnSaving(true);
+    try {
+      await handleReturn(selectedIssueForReturn, qualityForm);
+    } finally {
+      setReturnSaving(false);
     }
   };
 
@@ -65,7 +99,7 @@ export default function ReturnBooksPage() {
 
   const handleIssueBook = async () => {
     if (!issueForm.studentId.trim()) {
-      toast.error("Please enter Reg No");
+      toast.error("Please enter Student Reg No or Faculty Email");
       return;
     }
     if (!selectedBookForIssue) return;
@@ -73,7 +107,7 @@ export default function ReturnBooksPage() {
     setIssuingSaving(true);
     try {
       const profile = await fetchProfile(issueForm.studentId);
-      const resolvedStudentName = profile?.name?.trim() || `Student (${issueForm.studentId})`;
+      const resolvedStudentName = profile?.name?.trim() || `Member (${issueForm.studentId})`;
 
       const today = new Date();
       const due = new Date(today);
@@ -166,7 +200,7 @@ export default function ReturnBooksPage() {
                     </div>
                   </div>
                 </div>
-                <button onClick={() => handleReturn(issue)}
+                <button onClick={() => openReturnQualityCheck(issue)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
                   <CheckCircle className="h-4 w-4" /> Accept Return
                 </button>
@@ -180,6 +214,103 @@ export default function ReturnBooksPage() {
           </div>
         )}
       </div>
+
+      {/* Return Quality Check Modal */}
+      {qualityCheckOpen && selectedIssueForReturn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-foreground/20" onClick={() => !returnSaving && setQualityCheckOpen(false)} />
+          <div className="relative bg-card rounded-xl shadow-elevated w-full max-w-xl p-6 border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-semibold text-xl text-foreground">Book Quality Check</h2>
+                <p className="text-sm text-muted-foreground mt-1">Inspect the returned book before accepting it.</p>
+              </div>
+              <button onClick={() => !returnSaving && setQualityCheckOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mb-5 rounded-lg bg-muted p-4">
+              <p className="font-medium text-foreground">{selectedIssueForReturn.book_title}</p>
+              <p className="text-sm text-muted-foreground mt-1">{selectedIssueForReturn.student_name} ({selectedIssueForReturn.student_id})</p>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Overall Condition</label>
+                <select
+                  value={qualityForm.status}
+                  onChange={(e) => setQualityForm((prev) => ({ ...prev, status: e.target.value as ReturnQualityCheck["status"] }))}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50"
+                >
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="minor_damage">Minor Damage</option>
+                  <option value="damaged">Damaged</option>
+                </select>
+              </div>
+
+              <div>
+                <p className="block text-sm font-medium text-foreground mb-2">Checklist</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { key: "coverIntact", label: "Cover intact" },
+                    { key: "pagesIntact", label: "Pages intact" },
+                    { key: "bindingIntact", label: "Binding intact" },
+                    { key: "cleanPages", label: "Pages clean" },
+                  ].map((item) => (
+                    <label key={item.key} className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={qualityForm.checklist[item.key as keyof ReturnQualityCheck["checklist"]]}
+                        onChange={(e) =>
+                          setQualityForm((prev) => ({
+                            ...prev,
+                            checklist: {
+                              ...prev.checklist,
+                              [item.key]: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-border text-secondary focus:ring-secondary/50"
+                      />
+                      {item.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Notes</label>
+                <textarea
+                  value={qualityForm.notes || ""}
+                  onChange={(e) => setQualityForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  rows={4}
+                  placeholder="Add notes about stains, tears, missing pages, loose binding, or repairs needed"
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setQualityCheckOpen(false)}
+                disabled={returnSaving}
+                className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReturnWithQualityCheck}
+                disabled={returnSaving}
+                className="px-5 py-2 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                {returnSaving ? "Saving Check..." : "Complete Return"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Issue Book Modal */}
       {issueModalOpen && selectedBookForIssue && (
@@ -214,11 +345,11 @@ export default function ReturnBooksPage() {
             {/* Form */}
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No / Faculty Email</label>
                 <input 
                   value={issueForm.studentId} 
                   onChange={e => setIssueForm({ studentId: e.target.value })}
-                  placeholder="Enter student registration number"
+                  placeholder="Enter student reg no or faculty email"
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" 
                 />
               </div>
@@ -251,6 +382,9 @@ export default function ReturnBooksPage() {
             <h3 className="font-semibold text-lg text-foreground mb-2">Book Returned</h3>
             <p className="text-muted-foreground text-sm mb-1">{receipt.book}</p>
             <p className="text-muted-foreground text-sm mb-4">by {receipt.student}</p>
+            <div className="mb-4 rounded-lg bg-muted px-3 py-2 text-sm text-foreground capitalize">
+              Quality Check: {receipt.qualityStatus.replace("_", " ")}
+            </div>
             {receipt.penaltyFee > 0 && (
               <div className="bg-destructive/10 rounded-lg p-3 mb-4">
                 <p className="text-destructive font-medium text-sm flex items-center justify-center gap-1">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import type { Book } from "@/lib/types";
@@ -149,7 +149,7 @@ export default function BooksPage() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const loadBooks = async () => {
+  const loadBooks = useCallback(async () => {
     if (!loading) {
       setTableLoading(true);
     }
@@ -214,11 +214,11 @@ export default function BooksPage() {
       setLoading(false);
       setTableLoading(false);
     }
-  };
+  }, [loading, search, catFilter, statusFilter, yearFilter, dateFilter, page, perPage]);
 
   useEffect(() => {
     void loadBooks();
-  }, [page, search, catFilter, statusFilter, yearFilter, dateFilter]);
+  }, [loadBooks]);
 
   useEffect(() => {
     const loadCategoryOptions = async () => {
@@ -262,7 +262,7 @@ export default function BooksPage() {
       window.removeEventListener("focus", handleWindowFocus);
       void supabase.removeChannel(channel);
     };
-  }, [page, search, catFilter, statusFilter, yearFilter, dateFilter, loading]);
+  }, [loadBooks]);
 
   const filtered = books;
   const totalPages = Math.max(1, Math.ceil(matchingBookRecords / perPage));
@@ -352,7 +352,7 @@ export default function BooksPage() {
 
   const handleIssueBook = async () => {
     if (!issueForm.studentId.trim()) {
-      toast.error("Please enter Reg No");
+      toast.error("Please enter Student Reg No or Faculty Email");
       return;
     }
     if (!selectedBookForIssue) return;
@@ -360,7 +360,7 @@ export default function BooksPage() {
     setIssuingSaving(true);
     try {
       const profile = await fetchProfile(issueForm.studentId);
-      const resolvedStudentName = profile?.name?.trim() || `Student (${issueForm.studentId})`;
+      const resolvedStudentName = profile?.name?.trim() || `Member (${issueForm.studentId})`;
 
       const today = new Date();
       const due = new Date(today);
@@ -794,11 +794,11 @@ export default function BooksPage() {
             {/* Form */}
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No / Faculty Email</label>
                 <input 
                   value={issueForm.studentId} 
                   onChange={e => setIssueForm({ studentId: e.target.value })}
-                  placeholder="Enter student registration number"
+                  placeholder="Enter student reg no or faculty email"
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" 
                 />
               </div>

@@ -617,14 +617,104 @@ export async function fetchIssuedBooks(): Promise<IssuedBook[]> {
     return data ?? [];
 }
 
-export async function fetchIssuedBooksByStudent(studentId: string): Promise<IssuedBook[]> {
+async function fetchProfileByEmail(email: string): Promise<UserProfile | null> {
+    const normalizedEmail = sanitizeText(email).toLowerCase();
+    if (!normalizedEmail) return null;
+
     const { data, error } = await supabase
-        .from("issued_books")
+        .from("profiles")
         .select("*")
-        .eq("student_id", studentId)
-        .order("issue_date", { ascending: false });
-    if (error) throw error;
-    return data ?? [];
+        .eq("email", normalizedEmail)
+        .maybeSingle();
+
+    if (error) return null;
+    return data;
+}
+
+export async function fetchIssuedBooksByStudent(
+    studentLookup: string | { id?: string; regNo?: string; email?: string },
+): Promise<IssuedBook[]> {
+    const lookup =
+        typeof studentLookup === "string"
+            ? { id: studentLookup }
+            : studentLookup;
+
+    const directId = sanitizeText(lookup.id);
+    const directRegNo = sanitizeText(lookup.regNo);
+    const directEmail = sanitizeText(lookup.email).toLowerCase();
+
+    const matchedProfiles = new Map<string, UserProfile>();
+
+    const addProfile = (profile: UserProfile | null) => {
+        if (!profile?.id) return;
+        matchedProfiles.set(profile.id, profile);
+    };
+
+    addProfile(directId ? await fetchProfile(directId) : null);
+    addProfile(directRegNo ? await fetchProfile(directRegNo) : null);
+    addProfile(directEmail ? await fetchProfileByEmail(directEmail) : null);
+
+    const candidateStudentIds = Array.from(new Set([
+        directId,
+        directRegNo,
+        ...Array.from(matchedProfiles.values()).flatMap((profile) => [
+            sanitizeText(profile.id),
+            sanitizeText(profile.reg_no),
+        ]),
+    ].filter(Boolean)));
+
+    const candidateEmails = Array.from(new Set([
+        directEmail,
+        ...Array.from(matchedProfiles.values()).map((profile) => sanitizeText(profile.email).toLowerCase()),
+    ].filter(Boolean)));
+
+    if (candidateStudentIds.length === 0 && candidateEmails.length === 0) {
+        return [];
+    }
+
+    const issueQueries = [];
+
+    if (candidateStudentIds.length > 0) {
+        issueQueries.push(
+            supabase
+                .from("issued_books")
+                .select("*")
+                .in("student_id", candidateStudentIds)
+                .order("issue_date", { ascending: false }),
+        );
+    }
+
+    if (candidateEmails.length > 0) {
+        issueQueries.push(
+            supabase
+                .from("issued_books")
+                .select("*")
+                .in("student_email", candidateEmails)
+                .order("issue_date", { ascending: false }),
+        );
+    }
+
+    const responses = await Promise.all(issueQueries);
+    const mergedIssues = new Map<string, IssuedBook>();
+
+    for (const response of responses) {
+        if (response.error) {
+            const missingColumns = getMissingIssuedBookColumns(response.error.message || "");
+            if (missingColumns.includes("student_email") && candidateStudentIds.length > 0) {
+                continue;
+            }
+
+            throw response.error;
+        }
+
+        for (const issue of response.data ?? []) {
+            mergedIssues.set(issue.id, issue as IssuedBook);
+        }
+    }
+
+    return Array
+        .from(mergedIssues.values())
+        .sort((a, b) => new Date(b.issue_date).getTime() - new Date(a.issue_date).getTime());
 }
 
 export async function fetchOverdueBooks(): Promise<IssuedBook[]> {
@@ -693,6 +783,34 @@ async function updateBookAvailableOptimistically(bookId: string, expectedAvailab
     return (data ?? []).length > 0;
 }
 
+function getMissingIssuedBookColumns(errorMessage: string): Array<"student_email"> {
+    const lowerMessage = errorMessage.toLowerCase();
+    const missing: Array<"student_email"> = [];
+
+    const mentionsStudentEmail =
+        lowerMessage.includes("student_email") ||
+        lowerMessage.includes("'student_email'") ||
+        lowerMessage.includes("\"student_email\"");
+
+    const indicatesMissingColumn =
+        lowerMessage.includes("does not exist") ||
+        lowerMessage.includes("could not find") ||
+        lowerMessage.includes("schema cache") ||
+        lowerMessage.includes("unknown column");
+
+    if (mentionsStudentEmail && indicatesMissingColumn) {
+        missing.push("student_email");
+    }
+
+    return missing;
+}
+
+export interface ReturnQualityCheck {
+    status: NonNullable<IssuedBook["return_quality_status"]>;
+    notes?: string;
+    checklist: NonNullable<IssuedBook["return_quality_checklist"]>;
+}
+
 export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBook> {
     const bookId = typeof issue.book_id === "string" ? issue.book_id.trim() : "";
     if (!bookId) throw new Error("Book is required to issue");
@@ -721,11 +839,48 @@ export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBo
 
     if (!decremented) throw new Error("Book availability changed. Please try again.");
 
-    const { data, error } = await supabase
-        .from("issued_books")
-        .insert(issue)
-        .select()
-        .single();
+    const matchedProfile = await fetchProfile(issue.student_id);
+    const resolvedStudentId = sanitizeText(matchedProfile?.reg_no, sanitizeText(issue.student_id));
+    const resolvedStudentEmail = sanitizeText(issue.student_email, sanitizeText(matchedProfile?.email)).toLowerCase();
+    const insertPayload: Record<string, unknown> = {
+        ...issue,
+        student_id: resolvedStudentId,
+        student_email: resolvedStudentEmail || null,
+    };
+
+    let data: IssuedBook | null = null;
+    let error: unknown = null;
+    const dbSafeInsertPayload: Record<string, unknown> = { ...insertPayload };
+
+    while (true) {
+        const response = await supabase
+            .from("issued_books")
+            .insert(dbSafeInsertPayload)
+            .select()
+            .single();
+
+        if (!response.error) {
+            data = response.data as IssuedBook;
+            break;
+        }
+
+        error = response.error;
+        const missingColumns = getMissingIssuedBookColumns(response.error.message || "");
+        if (missingColumns.length === 0) {
+            break;
+        }
+
+        let removedAnyColumn = false;
+        for (const missingColumn of missingColumns) {
+            if (!(missingColumn in dbSafeInsertPayload)) continue;
+            delete dbSafeInsertPayload[missingColumn];
+            removedAnyColumn = true;
+        }
+
+        if (!removedAnyColumn) {
+            break;
+        }
+    }
 
     if (error) {
         // Best-effort rollback of availability decrement.
@@ -742,10 +897,10 @@ export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBo
         throw error;
     }
 
-    return data;
+    return data as IssuedBook;
 }
 
-export async function returnBook(id: string): Promise<IssuedBook> {
+export async function returnBook(id: string, qualityCheck?: ReturnQualityCheck): Promise<IssuedBook> {
     const { data: existingIssue, error: existingError } = await supabase
         .from("issued_books")
         .select("*")
@@ -786,16 +941,58 @@ export async function returnBook(id: string): Promise<IssuedBook> {
         if (!incremented) throw new Error("Unable to update book availability. Please try again.");
     }
 
-    const { data: returnedIssue, error } = await supabase
-        .from("issued_books")
-        .update({
-            status: "returned",
-            return_date: returnDate,
-        })
-        .eq("id", id)
-        .eq("status", previousStatus)
-        .select()
-        .single();
+    const updatePayload: Record<string, unknown> = {
+        status: "returned",
+        return_date: returnDate,
+    };
+
+    if (qualityCheck) {
+        updatePayload.return_quality_status = qualityCheck.status;
+        updatePayload.return_quality_notes = sanitizeText(qualityCheck.notes);
+        updatePayload.return_quality_checked_at = new Date().toISOString();
+        updatePayload.return_quality_checklist = qualityCheck.checklist;
+    }
+
+    let returnedIssue: IssuedBook | null = null;
+    let error: unknown = null;
+    const dbSafeUpdatePayload: Record<string, unknown> = { ...updatePayload };
+
+    while (true) {
+        const response = await supabase
+            .from("issued_books")
+            .update(dbSafeUpdatePayload)
+            .eq("id", id)
+            .eq("status", previousStatus)
+            .select()
+            .single();
+
+        if (!response.error) {
+            returnedIssue = response.data as IssuedBook;
+            break;
+        }
+
+        error = response.error;
+        const lowerMessage = response.error.message?.toLowerCase() || "";
+        const qualityColumnsMissing =
+            (lowerMessage.includes("return_quality_status") ||
+                lowerMessage.includes("return_quality_notes") ||
+                lowerMessage.includes("return_quality_checked_at") ||
+                lowerMessage.includes("return_quality_checklist")) &&
+            (lowerMessage.includes("does not exist") ||
+                lowerMessage.includes("could not find") ||
+                lowerMessage.includes("schema cache") ||
+                lowerMessage.includes("unknown column"));
+
+        if (!qualityColumnsMissing || !qualityCheck) {
+            break;
+        }
+
+        delete dbSafeUpdatePayload.return_quality_status;
+        delete dbSafeUpdatePayload.return_quality_notes;
+        delete dbSafeUpdatePayload.return_quality_checked_at;
+        delete dbSafeUpdatePayload.return_quality_checklist;
+        qualityCheck = undefined;
+    }
 
     if (error) {
         if (bookId && incremented && nextAvailable !== previousAvailable) {
@@ -814,7 +1011,7 @@ export async function returnBook(id: string): Promise<IssuedBook> {
         throw error;
     }
 
-    return returnedIssue;
+    return returnedIssue as IssuedBook;
 }
 
 // ─── Profiles ───────────────────────────────────────────
@@ -836,12 +1033,17 @@ export async function fetchProfile(userIdentifier: string): Promise<UserProfile 
     const identifier = userIdentifier.trim();
     if (!identifier) return null;
 
-    const lookupColumn = looksLikeUuid(identifier) ? "id" : "reg_no";
+    const lookupColumn = identifier.includes("@")
+        ? "email"
+        : looksLikeUuid(identifier)
+            ? "id"
+            : "reg_no";
+    const lookupValue = lookupColumn === "email" ? identifier.toLowerCase() : identifier;
 
     const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq(lookupColumn, identifier)
+        .eq(lookupColumn, lookupValue)
         .maybeSingle();
 
     if (error) return null;

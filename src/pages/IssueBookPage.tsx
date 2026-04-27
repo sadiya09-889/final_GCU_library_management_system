@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { BookCopy, Search, Plus, X, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { IssuedBook } from "@/lib/types";
-import { fetchIssuedBooks, fetchBooks, fetchProfile, issueBook } from "@/lib/supabaseService";
+import { fetchIssuedBooks, fetchBooks, fetchProfile, issueBook, returnBook } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 
 export default function IssueBookPage() {
@@ -39,7 +39,7 @@ export default function IssueBookPage() {
       const book = books.find(b => b.book_number === form.bookNumber);
 
       const profile = await fetchProfile(form.studentId);
-      const resolvedStudentName = profile?.name?.trim() || `Student (${form.studentId})`;
+      const resolvedStudentName = profile?.name?.trim() || `Member (${form.studentId})`;
 
       const today = new Date();
       const due = new Date(today);
@@ -66,7 +66,6 @@ export default function IssueBookPage() {
 
   const handleReturn = async (id: string) => {
     try {
-      const { returnBook } = await import("@/lib/supabaseService");
       await returnBook(id);
       toast.success("Book returned");
       await loadIssues();
@@ -133,7 +132,7 @@ export default function IssueBookPage() {
           <thead>
             <tr className="border-b border-border text-left">
               <th className="px-5 py-3 text-muted-foreground font-medium">Book</th>
-              <th className="px-5 py-3 text-muted-foreground font-medium">Student</th>
+              <th className="px-5 py-3 text-muted-foreground font-medium">Member</th>
               <th className="px-5 py-3 text-muted-foreground font-medium">ID</th>
               <th className="px-5 py-3 text-muted-foreground font-medium">Issue Date</th>
               <th className="px-5 py-3 text-muted-foreground font-medium">Due Date</th>
@@ -183,8 +182,9 @@ export default function IssueBookPage() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Reg No</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No / Faculty Email</label>
                 <input value={form.studentId} onChange={e => setForm({ ...form, studentId: e.target.value })}
+                  placeholder="Enter student reg no or faculty email"
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" />
               </div>
               <div>

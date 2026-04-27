@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Search, Shield, BookOpen, GraduationCap, Loader2 } from "lucide-react";
+import { Search, Shield, BookOpen, GraduationCap, Loader2, Briefcase } from "lucide-react";
 import type { UserProfile } from "@/lib/types";
 import { fetchProfiles } from "@/lib/supabaseService";
 
-const roleIcons = { admin: Shield, librarian: BookOpen, student: GraduationCap };
+const roleIcons = { admin: Shield, librarian: BookOpen, student: GraduationCap, faculty: Briefcase };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);

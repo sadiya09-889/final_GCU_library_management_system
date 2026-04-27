@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, BookOpen, AlertTriangle, CheckCircle, Clock, Loader2 } from "lucide-react";
 import { fetchIssuedBooksByStudent } from "@/lib/supabaseService";
+import { supabase } from "@/lib/supabase";
 import type { IssuedBook } from "@/lib/types";
 
 type NotificationType = "due" | "overdue" | "returned" | "reserved";
@@ -122,15 +123,29 @@ export default function NotificationsPage() {
   useEffect(() => {
     const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
     const studentId = user?.id as string | undefined;
+    const studentEmail = user?.email as string | undefined;
 
-    if (!studentId) {
+    if (!studentId && !studentEmail) {
       setLoading(false);
       setError("Unable to load notifications for this account.");
       return;
     }
 
-    fetchIssuedBooksByStudent(studentId)
-      .then(setIssuedBooks)
+    supabase.auth.getUser()
+      .then(async ({ data: { user: authUser } }) => {
+        const metadataRegNo =
+          typeof authUser?.user_metadata?.reg_no === "string"
+            ? authUser.user_metadata.reg_no
+            : "";
+
+        const myBooks = await fetchIssuedBooksByStudent({
+          id: studentId,
+          email: studentEmail,
+          regNo: metadataRegNo,
+        });
+
+        setIssuedBooks(myBooks);
+      })
       .catch(() => setError("Failed to load notifications."))
       .finally(() => setLoading(false));
   }, []);

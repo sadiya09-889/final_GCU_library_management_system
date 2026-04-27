@@ -45,7 +45,7 @@ export default function OverduePage() {
 
   const handleIssueBook = async () => {
     if (!issueForm.studentId.trim()) {
-      alert("Please enter Reg No");
+      alert("Please enter Student Reg No or Faculty Email");
       return;
     }
     if (!selectedBookForIssue) return;
@@ -53,7 +53,7 @@ export default function OverduePage() {
     setIssuingSaving(true);
     try {
       const profile = await fetchProfile(issueForm.studentId);
-      const resolvedStudentName = profile?.name?.trim() || `Student (${issueForm.studentId})`;
+      const resolvedStudentName = profile?.name?.trim() || `Member (${issueForm.studentId})`;
 
       const today = new Date();
       const due = new Date(today);
@@ -206,11 +206,11 @@ export default function OverduePage() {
             {/* Form */}
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Student Reg No / Faculty Email</label>
                 <input 
                   value={issueForm.studentId} 
                   onChange={e => setIssueForm({ studentId: e.target.value })}
-                  placeholder="Enter student registration number"
+                  placeholder="Enter student reg no or faculty email"
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50" 
                 />
               </div>

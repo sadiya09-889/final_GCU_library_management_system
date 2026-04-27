@@ -1,20 +1,35 @@
 import { useState, useEffect } from "react";
 import { IndianRupee, CheckCircle, Clock, CreditCard, Loader2 } from "lucide-react";
-import { fetchOverdueBooks } from "@/lib/supabaseService";
+import { fetchIssuedBooksByStudent } from "@/lib/supabaseService";
 import type { IssuedBook } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 
 const FEE_PER_DAY = 2;
 
 export default function FineDetailsPage() {
   const [rawOverdue, setRawOverdue] = useState<IssuedBook[]>([]);
   const [loading, setLoading] = useState(true);
+  const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
 
   useEffect(() => {
-    fetchOverdueBooks()
-      .then(setRawOverdue)
+    supabase.auth.getUser()
+      .then(async ({ data: { user: authUser } }) => {
+        const metadataRegNo =
+          typeof authUser?.user_metadata?.reg_no === "string"
+            ? authUser.user_metadata.reg_no
+            : "";
+
+        const books = await fetchIssuedBooksByStudent({
+          id: typeof user?.id === "string" ? user.id : "",
+          email: typeof user?.email === "string" ? user.email : "",
+          regNo: metadataRegNo,
+        });
+
+        setRawOverdue(books.filter((book) => book.status === "overdue"));
+      })
       .catch(() => { })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.email, user?.id]);
 
   const overdueBooks = rawOverdue.map(i => {
     const due = new Date(i.due_date);
