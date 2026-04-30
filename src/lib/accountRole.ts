@@ -56,6 +56,8 @@ export async function resolveCurrentUserContext(sessionUser?: User | null) {
 
   const email = (getText(authUser.email) || getText(profile?.email)).toLowerCase();
   const regNo = getText(profile?.reg_no) || getText(authUser.user_metadata?.reg_no);
+  const school = getText(profile?.school) || getText(authUser.user_metadata?.school);
+  const department = getText(profile?.department) || getText(authUser.user_metadata?.department);
   const currentRole = isAppRole(profile?.role)
     ? profile.role
     : isAppRole(authUser.user_metadata?.role)
@@ -69,6 +71,8 @@ export async function resolveCurrentUserContext(sessionUser?: User | null) {
     name,
     email,
     regNo,
+    school,
+    department,
     role,
   };
 }
@@ -77,7 +81,7 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
   const resolved = await resolveCurrentUserContext(sessionUser);
   if (!resolved) return null;
 
-  const { user, profile, name, email, regNo, role } = resolved;
+  const { user, profile, name, email, regNo, school, department, role } = resolved;
 
   if (
     profile &&
@@ -85,6 +89,8 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
       getText(profile.name) !== name ||
       getText(profile.email).toLowerCase() !== email ||
       getText(profile.reg_no) !== regNo ||
+      getText(profile.school) !== school ||
+      getText(profile.department) !== department ||
       profile.role !== role
     )
   ) {
@@ -95,6 +101,8 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
           name,
           email,
           reg_no: regNo || null,
+          school: school || null,
+          department: department || null,
           role,
         })
         .eq("id", user.id);
@@ -106,8 +114,16 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
   const metadataName = getText(user.user_metadata?.name);
   const metadataRole = getText(user.user_metadata?.role);
   const metadataRegNo = getText(user.user_metadata?.reg_no);
+  const metadataSchool = getText(user.user_metadata?.school);
+  const metadataDepartment = getText(user.user_metadata?.department);
 
-  if (metadataName !== name || metadataRole !== role || metadataRegNo !== regNo) {
+  if (
+    metadataName !== name ||
+    metadataRole !== role ||
+    metadataRegNo !== regNo ||
+    metadataSchool !== school ||
+    metadataDepartment !== department
+  ) {
     try {
       await supabase.auth.updateUser({
         data: {
@@ -115,6 +131,8 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
           name,
           role,
           reg_no: regNo || "",
+          school: school || "",
+          department: department || "",
         },
       });
     } catch {

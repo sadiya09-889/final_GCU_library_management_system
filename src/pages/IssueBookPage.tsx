@@ -2,8 +2,16 @@ import { useState, useEffect } from "react";
 import { BookCopy, Search, Plus, X, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { IssuedBook } from "@/lib/types";
-import { fetchIssuedBooks, fetchBooks, fetchProfile, issueBook, returnBook } from "@/lib/supabaseService";
+import { fetchIssuedBooks, fetchBookByBookNumber, fetchProfile, issueBook, returnBook } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+}
 
 export default function IssueBookPage() {
   const [issues, setIssues] = useState<IssuedBook[]>([]);
@@ -35,8 +43,10 @@ export default function IssueBookPage() {
     if (!form.bookNumber || !form.studentId) return;
     setSaving(true);
     try {
-      const books = await fetchBooks();
-      const book = books.find(b => b.book_number === form.bookNumber);
+      const book = await fetchBookByBookNumber(form.bookNumber);
+      if (!book) {
+        throw new Error("Book number not found");
+      }
 
       const profile = await fetchProfile(form.studentId);
       const resolvedStudentName = profile?.name?.trim() || `Member (${form.studentId})`;
@@ -57,8 +67,8 @@ export default function IssueBookPage() {
       setModalOpen(false);
       setForm({ bookNumber: "", studentId: "" });
       await loadIssues();
-    } catch {
-      toast.error("Failed to issue book");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to issue book"));
     } finally {
       setSaving(false);
     }

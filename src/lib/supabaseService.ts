@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
-import type { Book, IssuedBook, UserProfile } from "./types";
+import { ACADEMIC_PROGRAMMES, getProgrammeRecommendationKeywords } from "./academicProgrammes";
+import type { AcademicProgramme, Book, BookReservation, BookReservationStatus, IssuedBook, LibraryNotification, Magazine, ProgrammeBook, UserProfile } from "./types";
 
 function normalizeBookPayload<T extends Partial<Omit<Book, "id">>>(book: T) {
     const date = book.date_of_purchase;
@@ -18,6 +19,37 @@ function getErrorMessage(error: unknown, fallback: string): string {
     }
     return fallback;
 }
+
+function isMissingRelationError(error: unknown, relationName: string): boolean {
+    const message = getErrorMessage(error, "").toLowerCase();
+    const relation = relationName.toLowerCase();
+
+    return (
+        message.includes(relation) &&
+        (
+            message.includes("does not exist") ||
+            message.includes("could not find") ||
+            message.includes("schema cache")
+        )
+    );
+}
+
+function isMissingFunctionError(error: unknown, functionName: string): boolean {
+    const message = getErrorMessage(error, "").toLowerCase();
+    const fn = functionName.toLowerCase();
+
+    return (
+        message.includes(fn) &&
+        (
+            message.includes("does not exist") ||
+            message.includes("could not find") ||
+            message.includes("schema cache") ||
+            message.includes("pgrst202")
+        )
+    );
+}
+
+const MAGAZINES_BUCKET = "magazines";
 
 export interface BulkUploadResult {
     successful: number;
@@ -38,6 +70,22 @@ export interface FetchBooksPageParams {
 export interface FetchBooksPageResult {
     books: Book[];
     total: number;
+}
+
+export interface FetchOpacBooksPageParams {
+    page: number;
+    perPage: number;
+    search?: string;
+    availableOnly?: boolean;
+    yearStart?: number | null;
+    yearEnd?: number | null;
+    programmeKeywords?: string[];
+}
+
+export interface FetchOpacBooksPageResult {
+    books: Book[];
+    total: number;
+    source: "rpc" | "fallback";
 }
 
 function sanitizeText(value: unknown, fallback = ""): string {
@@ -72,6 +120,14 @@ function sanitizeDate(value: unknown): string | null {
 
 function normalizeUniqueField(value: unknown): string {
     return sanitizeText(value).toLowerCase();
+}
+
+function escapePostgrestPattern(value: string) {
+    return value.replace(/[%_]/g, (match) => `\\${match}`);
+}
+
+function escapePostgrestFilterValue(value: string) {
+    return escapePostgrestPattern(value).replace(/[(),]/g, " ");
 }
 
 function getBookConstraintMessage(error: unknown, fallback: string): string {
@@ -400,7 +456,7 @@ export async function fetchAllBooks(pageSize = 1000): Promise<Book[]> {
             .range(offset, offset + effectivePageSize - 1);
 
         if (error) throw error;
-        const batch = (data ?? []) as Book[];
+        const batch = (data ?? []) as unknown as Book[];
         all.push(...batch);
 
         if (batch.length < effectivePageSize) break;
@@ -441,7 +497,7 @@ export async function fetchBooksForDashboard(pageSize = 1000): Promise<Book[]> {
             .range(offset, offset + effectivePageSize - 1);
 
         if (error) throw error;
-        const batch = (data ?? []) as Book[];
+        const batch = (data ?? []) as unknown as Book[];
         all.push(...batch);
 
         if (batch.length < effectivePageSize) break;
@@ -565,6 +621,336 @@ export async function fetchAvailableBooks(limit = 3): Promise<Book[]> {
     return (data ?? []) as Book[];
 }
 
+function getMissingMagazinesMessage(error: unknown) {
+    if (isMissingRelationError(error, "magazines")) {
+        return "E-Resources magazines are not configured in Supabase yet. Run add_e_resources_magazines.sql in the SQL editor.";
+    }
+
+    return getErrorMessage(error, "Magazine request failed");
+}
+
+function getMagazineStorageMessage(error: unknown) {
+    const message = getErrorMessage(error, "Magazine storage request failed");
+    const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.includes("bucket") && lowerMessage.includes("not found")) {
+        return "Magazine storage bucket is not configured yet. Run add_e_resources_magazines.sql in the SQL editor.";
+    }
+
+    if (lowerMessage.includes("row-level security") || lowerMessage.includes("permission")) {
+        return "You do not have permission to manage magazine files.";
+    }
+
+    return message;
+}
+
+function sanitizeFileName(fileName: string) {
+    const trimmed = sanitizeText(fileName, "magazine");
+    const extensionMatch = trimmed.match(/\.([a-z0-9]+)$/i);
+    const extension = extensionMatch ? extensionMatch[1].toLowerCase() : "pdf";
+    const withoutExtension = extensionMatch
+        ? trimmed.slice(0, -extensionMatch[0].length)
+        : trimmed;
+    const baseName = withoutExtension
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80);
+
+    return `${baseName || "magazine"}.${extension}`;
+}
+
+function getMagazineStoragePath(fileUrl: string) {
+    const marker = `/storage/v1/object/public/${MAGAZINES_BUCKET}/`;
+    const markerIndex = fileUrl.indexOf(marker);
+
+    if (markerIndex === -1) return "";
+
+    const path = fileUrl.slice(markerIndex + marker.length).split("?")[0];
+
+    try {
+        return decodeURIComponent(path);
+    } catch {
+        return path;
+    }
+}
+
+function normalizeBookRecord(row: Partial<Book>): Book {
+    return {
+        id: sanitizeText(row.id),
+        title: sanitizeText(row.title, "Untitled Book"),
+        sub_title: sanitizeText(row.sub_title),
+        author: sanitizeText(row.author, "Unknown Author"),
+        author2: sanitizeText(row.author2),
+        isbn: sanitizeText(row.isbn),
+        category: sanitizeText(row.category),
+        available: Math.max(0, sanitizeInteger(row.available, 0)),
+        total: Math.max(0, sanitizeInteger(row.total, 0)),
+        class_number: sanitizeText(row.class_number),
+        book_number: sanitizeText(row.book_number),
+        edition: sanitizeText(row.edition),
+        place_of_publication: sanitizeText(row.place_of_publication),
+        name_of_publication: sanitizeText(row.name_of_publication),
+        year_of_publication: sanitizeInteger(row.year_of_publication, 0),
+        phy_desc: sanitizeText(row.phy_desc),
+        volume: sanitizeText(row.volume),
+        general_note: sanitizeText(row.general_note),
+        subject: sanitizeText(row.subject),
+        permanent_location: sanitizeText(row.permanent_location),
+        current_library: sanitizeText(row.current_library),
+        location: sanitizeText(row.location),
+        date_of_purchase: sanitizeText(row.date_of_purchase),
+        vendor: sanitizeText(row.vendor),
+        bill_number: sanitizeText(row.bill_number),
+        price: sanitizeDecimal(row.price, 0),
+        call_no: sanitizeText(row.call_no),
+        accession_no: sanitizeText(row.accession_no),
+        item_type: sanitizeText(row.item_type, "Book"),
+    };
+}
+
+function normalizeKeywordFilters(keywords: string[]) {
+    return Array.from(new Set(
+        keywords
+            .map((keyword) => sanitizeText(keyword))
+            .filter((keyword) => keyword.length >= 2)
+            .slice(0, 16),
+    ));
+}
+
+function getOpacSearchFilter(search: string) {
+    const escaped = escapePostgrestFilterValue(search);
+    const filters = [
+        `title.ilike.%${escaped}%`,
+        `author.ilike.%${escaped}%`,
+        `isbn.ilike.%${escaped}%`,
+        `book_number.ilike.%${escaped}%`,
+        `accession_no.ilike.%${escaped}%`,
+        `category.ilike.%${escaped}%`,
+        `subject.ilike.%${escaped}%`,
+        `call_no.ilike.%${escaped}%`,
+        `class_number.ilike.%${escaped}%`,
+    ];
+
+    if (/^(18|19|20)\d{2}$/.test(search)) {
+        filters.push(`year_of_publication.eq.${search}`);
+    }
+
+    return filters.join(",");
+}
+
+function getOpacKeywordFilter(keywords: string[]) {
+    return normalizeKeywordFilters(keywords)
+        .flatMap((keyword) => {
+            const escaped = escapePostgrestFilterValue(keyword);
+            return [
+                `title.ilike.%${escaped}%`,
+                `author.ilike.%${escaped}%`,
+                `category.ilike.%${escaped}%`,
+                `subject.ilike.%${escaped}%`,
+                `call_no.ilike.%${escaped}%`,
+                `class_number.ilike.%${escaped}%`,
+            ];
+        })
+        .join(",");
+}
+
+async function fetchOpacBooksPageFallback(
+    params: Required<Pick<FetchOpacBooksPageParams, "page" | "perPage">> & FetchOpacBooksPageParams,
+): Promise<FetchOpacBooksPageResult> {
+    const page = Math.max(1, Math.floor(params.page || 1));
+    const perPage = Math.max(1, Math.min(50, Math.floor(params.perPage || 12)));
+    const from = (page - 1) * perPage;
+    const to = from + perPage - 1;
+    const search = sanitizeText(params.search);
+    const keywordFilter = getOpacKeywordFilter(params.programmeKeywords ?? []);
+
+    let query = supabase
+        .from("books")
+        .select("*", { count: "exact" });
+
+    if (search) {
+        query = query.or(getOpacSearchFilter(search));
+    }
+
+    if (keywordFilter) {
+        query = query.or(keywordFilter);
+    }
+
+    if (params.availableOnly) {
+        query = query.gt("available", 0);
+    }
+
+    if (Number.isFinite(params.yearStart)) {
+        query = query.gte("year_of_publication", params.yearStart as number);
+    }
+
+    if (Number.isFinite(params.yearEnd)) {
+        query = query.lte("year_of_publication", params.yearEnd as number);
+    }
+
+    const { data, error, count } = await query
+        .order("title")
+        .order("id")
+        .range(from, to);
+
+    if (error) throw error;
+
+    return {
+        books: ((data ?? []) as Partial<Book>[]).map(normalizeBookRecord),
+        total: count ?? 0,
+        source: "fallback",
+    };
+}
+
+export async function fetchOpacBooksPage(params: FetchOpacBooksPageParams): Promise<FetchOpacBooksPageResult> {
+    const page = Math.max(1, Math.floor(params.page || 1));
+    const perPage = Math.max(1, Math.min(50, Math.floor(params.perPage || 12)));
+    const pageOffset = (page - 1) * perPage;
+    const keywords = normalizeKeywordFilters(params.programmeKeywords ?? []);
+
+    const { data, error } = await supabase.rpc("search_opac_books", {
+        p_search_text: sanitizeText(params.search),
+        p_programme_keywords: keywords,
+        p_year_start: Number.isFinite(params.yearStart) ? params.yearStart : null,
+        p_year_end: Number.isFinite(params.yearEnd) ? params.yearEnd : null,
+        p_available_only: Boolean(params.availableOnly),
+        p_page_limit: perPage,
+        p_page_offset: pageOffset,
+    });
+
+    if (error) {
+        if (isMissingFunctionError(error, "search_opac_books")) {
+            return fetchOpacBooksPageFallback({ ...params, page, perPage });
+        }
+
+        throw error;
+    }
+
+    const rows = (data ?? []) as Array<Partial<Book> & { total_count?: number | string }>;
+
+    return {
+        books: rows.map((row) => normalizeBookRecord(row)),
+        total: rows.length > 0 ? sanitizeInteger(rows[0].total_count, rows.length) : 0,
+        source: "rpc",
+    };
+}
+
+function getProgrammeSortKey(programme: Pick<AcademicProgramme, "school" | "department">) {
+    return `${sanitizeText(programme.school).toLowerCase()}|${sanitizeText(programme.department).toLowerCase()}`;
+}
+
+function sortAcademicProgrammes(programmes: AcademicProgramme[]) {
+    const order = new Map(
+        ACADEMIC_PROGRAMMES.map((programme, index) => [getProgrammeSortKey(programme), index]),
+    );
+
+    return [...programmes].sort((a, b) => {
+        const aOrder = order.get(getProgrammeSortKey(a)) ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = order.get(getProgrammeSortKey(b)) ?? Number.MAX_SAFE_INTEGER;
+
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return `${a.school} ${a.department}`.localeCompare(`${b.school} ${b.department}`);
+    });
+}
+
+export async function fetchAcademicProgrammes(): Promise<AcademicProgramme[]> {
+    const { data, error } = await supabase
+        .from("academic_programmes")
+        .select("id, school, department, sheet_name, unique_titles, total_copies, is_general_reference")
+        .order("school")
+        .order("department");
+
+    if (error) {
+        if (isMissingRelationError(error, "academic_programmes")) {
+            return ACADEMIC_PROGRAMMES;
+        }
+
+        throw error;
+    }
+
+    const programmes = (data ?? []) as AcademicProgramme[];
+    return programmes.length > 0 ? sortAcademicProgrammes(programmes) : ACADEMIC_PROGRAMMES;
+}
+
+async function fetchFallbackBookRecommendations(params: {
+    school: string;
+    department: string;
+    limit: number;
+}): Promise<ProgrammeBook[]> {
+    const keywords = getProgrammeRecommendationKeywords(params.school, params.department).slice(0, 6);
+    if (keywords.length === 0) return [];
+
+    const orFilter = keywords.flatMap((keyword) => {
+        const escaped = escapePostgrestPattern(keyword);
+        return [
+            `category.ilike.%${escaped}%`,
+            `subject.ilike.%${escaped}%`,
+            `title.ilike.%${escaped}%`,
+        ];
+    }).join(",");
+
+    const { data, error } = await supabase
+        .from("books")
+        .select("id, title, author, isbn, category, subject, call_no, available, accession_no")
+        .gt("available", 0)
+        .or(orFilter)
+        .order("available", { ascending: false })
+        .order("title")
+        .limit(params.limit);
+
+    if (error) throw error;
+
+    return ((data ?? []) as Book[]).map((book, index) => ({
+        id: book.id,
+        school: params.school,
+        department: params.department,
+        sheet_name: "books",
+        sort_order: index + 1,
+        title: sanitizeText(book.title, "Untitled Book"),
+        author: sanitizeText(book.author, "Unknown Author"),
+        isbn: sanitizeText(book.isbn),
+        call_no: sanitizeText(book.call_no),
+        subject: sanitizeText(book.subject, sanitizeText(book.category, "General")),
+        copies: Math.max(0, sanitizeInteger(book.available, 0)),
+        accession_numbers: sanitizeText(book.accession_no),
+    }));
+}
+
+export async function fetchProgrammeBookRecommendations(params: {
+    school?: string;
+    department?: string;
+    limit?: number;
+}): Promise<ProgrammeBook[]> {
+    const school = sanitizeText(params.school);
+    const department = sanitizeText(params.department);
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(params.limit || 10)));
+
+    if (!school || !department) return [];
+
+    const { data, error } = await supabase
+        .from("programme_books")
+        .select("id, school, department, sheet_name, sort_order, title, author, isbn, call_no, subject, copies, accession_numbers")
+        .eq("school", school)
+        .eq("department", department)
+        .gt("copies", 0)
+        .order("sort_order", { ascending: true })
+        .limit(safeLimit);
+
+    if (error) {
+        if (isMissingRelationError(error, "programme_books")) {
+            return fetchFallbackBookRecommendations({ school, department, limit: safeLimit });
+        }
+
+        throw error;
+    }
+
+    const programmeBooks = (data ?? []) as ProgrammeBook[];
+    if (programmeBooks.length > 0) return programmeBooks;
+
+    return fetchFallbackBookRecommendations({ school, department, limit: safeLimit });
+}
+
 export async function addBook(book: Omit<Book, "id">): Promise<Book> {
     const normalizedBook = normalizeUploadBook(book);
     await validateBookForSave(normalizedBook);
@@ -607,6 +993,106 @@ export async function deleteBook(id: string): Promise<void> {
 }
 
 // ─── Issued Books ───────────────────────────────────────
+
+// Magazines
+
+export interface UploadMagazineInput {
+    title: string;
+    category?: string;
+    file: File;
+}
+
+export async function fetchMagazines(): Promise<Magazine[]> {
+    const { data, error } = await supabase
+        .from("magazines")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+    if (error) throw new Error(getMissingMagazinesMessage(error));
+    return (data ?? []) as Magazine[];
+}
+
+export async function uploadMagazine(input: UploadMagazineInput): Promise<Magazine> {
+    const title = sanitizeText(input.title);
+    const category = sanitizeText(input.category, "General");
+
+    if (!title) throw new Error("Magazine title is required");
+    if (!input.file) throw new Error("Magazine file is required");
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error("Please sign in to upload magazines");
+
+    const uploadedAt = new Date().toISOString().replace(/[:.]/g, "-");
+    const fileName = sanitizeFileName(input.file.name);
+    const storagePath = `${user.id}/${uploadedAt}-${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from(MAGAZINES_BUCKET)
+        .upload(storagePath, input.file, {
+            cacheControl: "3600",
+            contentType: input.file.type || undefined,
+            upsert: false,
+        });
+
+    if (uploadError) throw new Error(getMagazineStorageMessage(uploadError));
+
+    const { data: publicUrlData } = supabase.storage
+        .from(MAGAZINES_BUCKET)
+        .getPublicUrl(storagePath);
+
+    const fileUrl = publicUrlData.publicUrl;
+
+    const { data, error } = await supabase
+        .from("magazines")
+        .insert({
+            title,
+            category,
+            uploaded_by: user.id,
+            file_url: fileUrl,
+        })
+        .select()
+        .single();
+
+    if (error) {
+        await supabase.storage.from(MAGAZINES_BUCKET).remove([storagePath]);
+        throw new Error(getMissingMagazinesMessage(error));
+    }
+
+    return data as Magazine;
+}
+
+export async function deleteMagazine(id: string): Promise<void> {
+    const magazineId = sanitizeText(id);
+    if (!magazineId) throw new Error("Magazine id is required");
+
+    const { data: magazine, error: fetchError } = await supabase
+        .from("magazines")
+        .select("file_url")
+        .eq("id", magazineId)
+        .maybeSingle();
+
+    if (fetchError) throw new Error(getMissingMagazinesMessage(fetchError));
+    if (!magazine) throw new Error("Magazine not found");
+
+    const storagePath = getMagazineStoragePath(String(magazine.file_url ?? ""));
+    if (storagePath) {
+        const { error: removeError } = await supabase.storage
+            .from(MAGAZINES_BUCKET)
+            .remove([storagePath]);
+
+        if (removeError) throw new Error(getMagazineStorageMessage(removeError));
+    }
+
+    const { error } = await supabase
+        .from("magazines")
+        .delete()
+        .eq("id", magazineId);
+
+    if (error) throw new Error(getMissingMagazinesMessage(error));
+}
+
+// Issued Books
 
 export async function fetchIssuedBooks(): Promise<IssuedBook[]> {
     const { data, error } = await supabase
@@ -1016,6 +1502,126 @@ export async function returnBook(id: string, qualityCheck?: ReturnQualityCheck):
 
 // ─── Profiles ───────────────────────────────────────────
 
+function getMissingReservationsTableMessage(error: unknown) {
+    if (isMissingRelationError(error, "book_reservations")) {
+        return "Book reservations are not configured in Supabase yet. Run add_book_reservations.sql in the SQL editor.";
+    }
+
+    return getErrorMessage(error, "Reservation request failed");
+}
+
+export async function fetchBookReservations(): Promise<BookReservation[]> {
+    const { data, error } = await supabase
+        .from("book_reservations")
+        .select("*")
+        .order("requested_at", { ascending: false });
+
+    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    return (data ?? []) as BookReservation[];
+}
+
+export async function fetchBookReservationsByStudent(studentUserId: string): Promise<BookReservation[]> {
+    const normalizedStudentId = sanitizeText(studentUserId);
+    if (!normalizedStudentId) return [];
+
+    const { data, error } = await supabase
+        .from("book_reservations")
+        .select("*")
+        .eq("student_user_id", normalizedStudentId)
+        .order("requested_at", { ascending: false });
+
+    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    return (data ?? []) as BookReservation[];
+}
+
+export async function createBookReservation(book: Book): Promise<BookReservation> {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error("Please sign in to reserve books");
+
+    const profile = await fetchProfile(user.id);
+    const studentName =
+        sanitizeText(profile?.name) ||
+        sanitizeText(user.user_metadata?.name) ||
+        sanitizeText(user.email?.split("@")[0]) ||
+        "Library Member";
+    const studentEmail = sanitizeText(profile?.email, sanitizeText(user.email)).toLowerCase();
+    const studentRegNo = sanitizeText(profile?.reg_no, sanitizeText(user.user_metadata?.reg_no));
+
+    const existing = await supabase
+        .from("book_reservations")
+        .select("*")
+        .eq("student_user_id", user.id)
+        .eq("book_id", book.id)
+        .in("status", ["pending", "approved"])
+        .maybeSingle();
+
+    if (existing.error) throw new Error(getMissingReservationsTableMessage(existing.error));
+    if (existing.data) return existing.data as BookReservation;
+
+    const payload = {
+        book_id: book.id,
+        book_title: sanitizeText(book.title, "Untitled Book"),
+        book_author: sanitizeText(book.author),
+        book_number: sanitizeText(book.book_number),
+        accession_no: sanitizeText(book.accession_no),
+        student_user_id: user.id,
+        student_name: studentName,
+        student_email: studentEmail,
+        student_reg_no: studentRegNo || null,
+        status: "pending" as BookReservationStatus,
+    };
+
+    const { data, error } = await supabase
+        .from("book_reservations")
+        .insert(payload)
+        .select()
+        .single();
+
+    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    return data as BookReservation;
+}
+
+export async function updateBookReservationStatus(
+    reservationId: string,
+    status: Exclude<BookReservationStatus, "pending">,
+    notes = "",
+): Promise<BookReservation> {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error("Please sign in to update reservations");
+
+    const payload: Partial<BookReservation> = {
+        status,
+        notes: sanitizeText(notes),
+        processed_by: user.id,
+        processed_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+        .from("book_reservations")
+        .update(payload)
+        .eq("id", reservationId)
+        .select()
+        .single();
+
+    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    return data as BookReservation;
+}
+
+export async function cancelBookReservation(reservationId: string): Promise<BookReservation> {
+    const { data, error } = await supabase
+        .from("book_reservations")
+        .update({ status: "cancelled", processed_at: new Date().toISOString() })
+        .eq("id", reservationId)
+        .eq("status", "pending")
+        .select()
+        .single();
+
+    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    return data as BookReservation;
+}
+
 export async function fetchProfiles(): Promise<UserProfile[]> {
     const { data, error } = await supabase
         .from("profiles")
@@ -1050,11 +1656,79 @@ export async function fetchProfile(userIdentifier: string): Promise<UserProfile 
     return data;
 }
 
-function getMissingProfileColumns(errorMessage: string): Array<"contact_number" | "reg_no"> {
-    const lowerMessage = errorMessage.toLowerCase();
-    const missing: Array<"contact_number" | "reg_no"> = [];
+type NotificationLookup = {
+    id?: string;
+    regNo?: string;
+    email?: string;
+};
 
-    const isMissingColumnError = (columnName: "contact_number" | "reg_no") => {
+function getMissingNotificationsTableMessage(error: unknown) {
+    if (isMissingRelationError(error, "notifications")) {
+        return "Notifications are not configured in Supabase yet. Run supabase_add_notifications_table.sql in the SQL editor.";
+    }
+
+    return getErrorMessage(error, "Failed to load notifications");
+}
+
+async function fetchNotificationProfiles(lookup: NotificationLookup): Promise<UserProfile[]> {
+    const matchedProfiles = new Map<string, UserProfile>();
+
+    const addProfile = (profile: UserProfile | null) => {
+        if (!profile?.id) return;
+        matchedProfiles.set(profile.id, profile);
+    };
+
+    addProfile(lookup.id ? await fetchProfile(lookup.id) : null);
+    addProfile(lookup.regNo ? await fetchProfile(lookup.regNo) : null);
+    addProfile(lookup.email ? await fetchProfileByEmail(lookup.email) : null);
+
+    return Array.from(matchedProfiles.values());
+}
+
+export async function fetchNotificationsForStudent(
+    studentLookup: string | NotificationLookup,
+): Promise<LibraryNotification[]> {
+    const lookup = typeof studentLookup === "string" ? { id: studentLookup } : studentLookup;
+    const profiles = await fetchNotificationProfiles(lookup);
+
+    const candidateRecipientIds = Array.from(new Set([
+        sanitizeText(lookup.id),
+        ...profiles.map((profile) => sanitizeText(profile.id)),
+    ].filter(Boolean)));
+
+    if (candidateRecipientIds.length === 0) {
+        return [];
+    }
+
+    const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .in("recipient_id", candidateRecipientIds)
+        .order("created_at", { ascending: false });
+
+    if (error) throw new Error(getMissingNotificationsTableMessage(error));
+    return (data ?? []) as LibraryNotification[];
+}
+
+export async function markNotificationsAsRead(notificationIds: string[]): Promise<void> {
+    const uniqueIds = Array.from(new Set(notificationIds.map((id) => sanitizeText(id)).filter(Boolean)));
+    if (uniqueIds.length === 0) return;
+
+    const { error } = await supabase
+        .from("notifications")
+        .update({ read_at: new Date().toISOString() })
+        .in("id", uniqueIds);
+
+    if (error) throw new Error(getMissingNotificationsTableMessage(error));
+}
+
+type ProfileMetadataFallbackColumn = "contact_number" | "reg_no" | "school" | "department";
+
+function getMissingProfileColumns(errorMessage: string): ProfileMetadataFallbackColumn[] {
+    const lowerMessage = errorMessage.toLowerCase();
+    const missing: ProfileMetadataFallbackColumn[] = [];
+
+    const isMissingColumnError = (columnName: ProfileMetadataFallbackColumn) => {
         const mentionsColumn =
             lowerMessage.includes(columnName) ||
             lowerMessage.includes(`'${columnName}'`) ||
@@ -1075,6 +1749,14 @@ function getMissingProfileColumns(errorMessage: string): Array<"contact_number" 
 
     if (isMissingColumnError("reg_no")) {
         missing.push("reg_no");
+    }
+
+    if (isMissingColumnError("school")) {
+        missing.push("school");
+    }
+
+    if (isMissingColumnError("department")) {
+        missing.push("department");
     }
 
     return missing;
@@ -1156,5 +1838,35 @@ export async function updateProfile(userId: string, updates: Partial<Omit<UserPr
     return {
         ...updatedProfile,
         ...metadataUpdates,
+    };
+}
+
+export async function updateStudentAcademicProfile(
+    userId: string,
+    updates: Pick<UserProfile, "school" | "department">,
+): Promise<UserProfile> {
+    const school = sanitizeText(updates.school);
+    const department = sanitizeText(updates.department);
+
+    if (!school) throw new Error("School is required");
+    if (!department) throw new Error("Department is required");
+
+    const updatedProfile = await updateProfile(userId, { school, department });
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user?.id === userId) {
+        await supabase.auth.updateUser({
+            data: {
+                ...user.user_metadata,
+                school,
+                department,
+            },
+        });
+    }
+
+    return {
+        ...updatedProfile,
+        school,
+        department,
     };
 }

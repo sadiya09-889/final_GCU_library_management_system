@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Bell, Clock, IndianRupee, Loader2, Send, X } from "lucide-react";
-import { fetchOverdueBooks, checkAndUpdateOverdueBooks, fetchBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
+import { fetchOverdueBooks, checkAndUpdateOverdueBooks, fetchAvailableBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
 import type { IssuedBook, Book } from "@/lib/types";
 
 const FEE_PER_DAY = 2;
@@ -17,7 +17,7 @@ export default function OverduePage() {
 
   useEffect(() => {
     checkAndUpdateOverdueBooks()
-      .then(() => Promise.all([fetchOverdueBooks(), fetchBooks()]))
+      .then(() => Promise.all([fetchOverdueBooks(), fetchAvailableBooks(3)]))
       .then(([overdueData, booksData]) => {
         setRawOverdue(overdueData);
         setBooks(booksData);

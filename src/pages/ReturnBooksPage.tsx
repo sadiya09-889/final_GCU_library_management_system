@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Search, BookOpen, CheckCircle, Receipt, IndianRupee, Loader2, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import type { IssuedBook, Book } from "@/lib/types";
-import { fetchIssuedBooks, returnBook, fetchBooks, issueBook, fetchProfile, type ReturnQualityCheck } from "@/lib/supabaseService";
+import { fetchIssuedBooks, returnBook, fetchAvailableBooks, issueBook, fetchProfile, type ReturnQualityCheck } from "@/lib/supabaseService";
 
 const FEE_PER_DAY = 2;
 
@@ -34,7 +34,7 @@ export default function ReturnBooksPage() {
 
   const loadIssues = async () => {
     try {
-      const [data, booksData] = await Promise.all([fetchIssuedBooks(), fetchBooks()]);
+      const [data, booksData] = await Promise.all([fetchIssuedBooks(), fetchAvailableBooks(3)]);
       setIssues(data);
       setBooks(booksData);
     } catch {

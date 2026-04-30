@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, BookOpen, BookCopy, Users, User, LogOut, Menu, X, GraduationCap,
-  Globe, Award, Search, BarChart3, AlertTriangle, Bell, BookMarked, RotateCcw, Briefcase
+  Globe, Award, Search, BarChart3, AlertTriangle, Bell, BookMarked, RotateCcw, Briefcase, BookmarkCheck, Newspaper
 } from "lucide-react";
 import gcuLogo from "@/assets/gcu-logo.png";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { label: "Books", icon: BookOpen, path: "/dashboard/books", roles: ["admin", "librarian"] },
   { label: "Issue Books", icon: BookCopy, path: "/dashboard/issue", roles: ["admin", "librarian"] },
   { label: "Return Books", icon: RotateCcw, path: "/dashboard/return", roles: ["admin", "librarian"] },
+  { label: "Reservations", icon: BookmarkCheck, path: "/dashboard/reservations", roles: ["admin", "librarian"] },
   { label: "Overdue Management", icon: AlertTriangle, path: "/dashboard/overdue", roles: ["admin", "librarian"] },
   { label: "My Books", icon: BookMarked, path: "/dashboard/my-books", roles: ["student", "faculty"] },
 
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { label: "OPAC", icon: Search, path: "/dashboard/opac", roles: ["admin", "librarian", "student", "faculty"] },
   { label: "OPAC", icon: BookOpen, path: "/dashboard/opac", roles: ["admin", "librarian"] },
   { label: "DELNET", icon: Globe, path: "/dashboard/delnet", roles: ["admin", "librarian", "student", "faculty"] },
+  { label: "E-Resources", icon: Newspaper, path: "/dashboard/e-resources", roles: ["admin", "librarian", "student", "faculty"] },
   { label: "IRINS", icon: Award, path: "/dashboard/irins", roles: ["admin", "librarian", "faculty"] },
   { label: "Reports", icon: BarChart3, path: "/dashboard/reports", roles: ["admin", "librarian"] },
   { label: "Users", icon: Users, path: "/dashboard/users", roles: ["admin"] },
@@ -36,7 +38,7 @@ const navItems: NavItem[] = [
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState<{ name: string; role: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; name: string; role: string; email: string; school?: string; department?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -57,9 +59,15 @@ export default function DashboardLayout() {
             name: resolved?.name || u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
             role: resolved?.role || u.user_metadata?.role || "student",
             email: resolved?.email || u.email || "",
+            school: resolved?.school || u.user_metadata?.school || "",
+            department: resolved?.department || u.user_metadata?.department || "",
           };
           setUser(userData);
           sessionStorage.setItem("gcu_user", JSON.stringify(userData));
+
+          if (userData.role === "student" && (!userData.school || !userData.department)) {
+            navigate("/academic-profile", { replace: true });
+          }
         })
         .catch(() => {
           const u = session.user;
@@ -68,9 +76,15 @@ export default function DashboardLayout() {
             name: u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
             role: u.user_metadata?.role || "student",
             email: u.email || "",
+            school: u.user_metadata?.school || "",
+            department: u.user_metadata?.department || "",
           };
           setUser(fallbackUserData);
           sessionStorage.setItem("gcu_user", JSON.stringify(fallbackUserData));
+
+          if (fallbackUserData.role === "student" && (!fallbackUserData.school || !fallbackUserData.department)) {
+            navigate("/academic-profile", { replace: true });
+          }
         })
         .finally(() => setLoading(false));
     };

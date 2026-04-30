@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
+import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile, fetchProgrammeBookRecommendations } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
-import type { Book, IssuedBook, UserProfile } from "@/lib/types";
+import { getSchoolDisplayName } from "@/lib/academicProgrammes";
+import type { Book, IssuedBook, ProgrammeBook, UserProfile } from "@/lib/types";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -68,9 +69,12 @@ export default function DashboardPage() {
   const isStudent = user.role === "student";
   const isAdmin = user.role === "admin";
   const canViewUsersAnalytics = isAdmin;
+  const userSchool = safeText(user.school);
+  const userDepartment = safeText(user.department);
 
   const [books, setBooks] = useState<Book[]>([]);
   const [previewBooks, setPreviewBooks] = useState<Book[]>([]);
+  const [programmeRecommendations, setProgrammeRecommendations] = useState<ProgrammeBook[]>([]);
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [bookRecordCount, setBookRecordCount] = useState(0);
@@ -123,12 +127,22 @@ export default function DashboardPage() {
         // Ignore overdue sync errors and continue with dashboard data fetch.
       }
 
-      const [bookCountResult, availableBookCountResult, previewBooksResult, issuedBooksResult, usersResult] = await Promise.allSettled([
+      const [
+        bookCountResult,
+        availableBookCountResult,
+        previewBooksResult,
+        issuedBooksResult,
+        usersResult,
+        programmeRecommendationsResult,
+      ] = await Promise.allSettled([
         fetchBookRecordCount(),
         fetchAvailableBookRecordCount(),
         fetchAvailableBooks(isStudent ? 3 : 4),
         fetchIssuedBooks(),
         canViewUsersAnalytics ? fetchProfiles() : Promise.resolve([] as UserProfile[]),
+        isStudent
+          ? fetchProgrammeBookRecommendations({ school: userSchool, department: userDepartment, limit: 10 })
+          : Promise.resolve([] as ProgrammeBook[]),
       ]);
 
       let anySuccess = false;
@@ -158,6 +172,11 @@ export default function DashboardPage() {
         anySuccess = true;
       }
 
+      if (programmeRecommendationsResult.status === "fulfilled") {
+        setProgrammeRecommendations(programmeRecommendationsResult.value);
+        anySuccess = true;
+      }
+
       if (!anySuccess && !loadErrorShownRef.current) {
         loadErrorShownRef.current = true;
         toast.error("Unable to fetch dashboard analytics from Supabase");
@@ -169,11 +188,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
 
-      if (options?.refreshDetailedBooks) {
+      if (!isStudent && options?.refreshDetailedBooks) {
         void loadDetailedBooks();
       }
     }
-  }, [canViewUsersAnalytics, isStudent, loadDetailedBooks]);
+  }, [canViewUsersAnalytics, isStudent, loadDetailedBooks, userDepartment, userSchool]);
 
   useEffect(() => {
     void loadDashboardData({ refreshDetailedBooks: true });
@@ -311,15 +330,6 @@ export default function DashboardPage() {
     { label: "Upcoming Due", value: myUpcomingDue, icon: Clock, color: "text-accent" },
     { label: "Overdue", value: myOverdue, icon: AlertTriangle, color: "text-destructive" },
   ];
-
-  const recommendedBooks = highlightedBooks
-    .filter((b) => getEffectiveAvailableCount(b) > 0)
-    .sort((a, b) => {
-      const aDate = (a as Book & { created_at?: string }).created_at || a.date_of_purchase || "";
-      const bDate = (b as Book & { created_at?: string }).created_at || b.date_of_purchase || "";
-      return new Date(bDate).getTime() - new Date(aDate).getTime();
-    })
-    .slice(0, 3);
 
   const stats = isStudent ? studentStats : staffStats;
 
@@ -640,28 +650,27 @@ export default function DashboardPage() {
         <div className="mb-8">
           <div className="mb-4">
             <h2 className="font-semibold text-lg text-foreground">Recommended Books</h2>
-            <p className="text-muted-foreground text-sm">Books you might be interested in</p>
+            <p className="text-muted-foreground text-sm">
+              {userSchool && userDepartment
+                ? `${userDepartment} - ${getSchoolDisplayName(userSchool)}`
+                : "Based on your selected school and department"}
+            </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {recommendedBooks.map((book) => (
-              <div key={book.id} className="bg-card rounded-xl p-5 shadow-card border border-border hover:shadow-elevated transition-shadow">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            {programmeRecommendations.map((book) => (
+              <div key={book.id} className="bg-card rounded-lg p-4 shadow-card border border-border hover:shadow-elevated transition-shadow">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="h-5 w-5 text-secondary" />
+                  <div className="w-9 h-9 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="h-4 w-4 text-secondary" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-foreground leading-tight">{safeText(book.title, "Untitled Book")}</h3>
+                    <h3 className="font-semibold text-sm text-foreground leading-tight">{safeText(book.title, "Untitled Book")}</h3>
                     <p className="text-sm text-muted-foreground mt-0.5">{safeText(book.author, "Unknown Author")}</p>
-                    <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">{safeText(book.category, "Uncategorized")}</span>
+                    <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">{safeText(book.subject, "General")}</span>
                   </div>
                 </div>
               </div>
             ))}
-            {recommendedBooks.length === 0 && (
-              <div className="md:col-span-3 bg-card rounded-xl p-5 shadow-card border border-border text-sm text-muted-foreground">
-                No recommendations available yet.
-              </div>
-            )}
           </div>
         </div>
       )}

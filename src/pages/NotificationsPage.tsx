@@ -1,35 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
-import { Bell, BookOpen, AlertTriangle, CheckCircle, Clock, Loader2 } from "lucide-react";
-import { fetchIssuedBooksByStudent } from "@/lib/supabaseService";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Bell, BookOpen, Clock, Loader2 } from "lucide-react";
+import { fetchNotificationsForStudent, markNotificationsAsRead } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
-import type { IssuedBook } from "@/lib/types";
+import { resolveCurrentUserContext } from "@/lib/accountRole";
+import type { LibraryNotification, LibraryNotificationType } from "@/lib/types";
 
-type NotificationType = "due" | "overdue" | "returned" | "reserved";
-
-interface AppNotification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  time: string;
+type NotificationItem = LibraryNotification & {
   read: boolean;
   createdAt: Date;
-}
-
-const FEE_PER_DAY = 2;
-
-const icons: Record<NotificationType, typeof Bell> = {
-  due: Clock,
-  overdue: AlertTriangle,
-  reserved: BookOpen,
-  returned: CheckCircle,
+  time: string;
 };
 
-const iconColors: Record<NotificationType, string> = {
-  due: "text-accent",
+const icons: Record<LibraryNotificationType, typeof Bell> = {
+  due_soon: Clock,
+  overdue: AlertTriangle,
+  penalty: BookOpen,
+  custom: Bell,
+};
+
+const iconColors: Record<LibraryNotificationType, string> = {
+  due_soon: "text-accent",
   overdue: "text-destructive",
-  reserved: "text-secondary",
-  returned: "text-secondary",
+  penalty: "text-secondary",
+  custom: "text-secondary",
 };
 
 function formatRelative(date: Date): string {
@@ -44,113 +37,82 @@ function formatRelative(date: Date): string {
   return `${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-function parseDate(dateStr: string): Date {
-  return new Date(`${dateStr}T00:00:00`);
-}
+function toNotificationItem(notification: LibraryNotification): NotificationItem {
+  const createdAt = new Date(notification.created_at);
 
-function createNotifications(issuedBooks: IssuedBook[]): AppNotification[] {
-  const now = new Date();
-  const today = parseDate(now.toISOString().slice(0, 10));
-
-  const data: AppNotification[] = [];
-
-  for (const b of issuedBooks) {
-    const dueDate = parseDate(b.due_date);
-    const createdAt = b.return_date ? parseDate(b.return_date) : parseDate(b.issue_date);
-    const diffDays = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (b.status === "issued") {
-      if (diffDays === 1) {
-        data.push({
-          id: `${b.id}-due-1`,
-          type: "due",
-          title: "Book Due Tomorrow",
-          message: `"${b.book_title}" is due tomorrow (${b.due_date}).`,
-          time: formatRelative(createdAt),
-          read: false,
-          createdAt,
-        });
-      }
-      if (diffDays === 0) {
-        data.push({
-          id: `${b.id}-due-0`,
-          type: "due",
-          title: "Book Due Today",
-          message: `"${b.book_title}" is due today (${b.due_date}).`,
-          time: formatRelative(createdAt),
-          read: false,
-          createdAt,
-        });
-      }
-    }
-
-    if (b.status === "overdue" || diffDays < 0) {
-      const daysOverdue = Math.max(1, Math.abs(diffDays));
-      const penaltyFee = daysOverdue * FEE_PER_DAY;
-      data.push({
-        id: `${b.id}-overdue`,
-        type: "overdue",
-        title: "Penalty Fee Notification",
-        message: `"${b.book_title}" is ${daysOverdue} day${daysOverdue > 1 ? "s" : ""} overdue. You have ₹${penaltyFee} penalty fee.`,
-        time: formatRelative(createdAt),
-        read: false,
-        createdAt,
-      });
-    }
-
-    if (b.status === "returned" && b.return_date) {
-      const returnedAt = parseDate(b.return_date);
-      data.push({
-        id: `${b.id}-returned`,
-        type: "returned",
-        title: "Return Confirmed",
-        message: `"${b.book_title}" has been returned successfully.`,
-        time: formatRelative(returnedAt),
-        read: true,
-        createdAt: returnedAt,
-      });
-    }
-  }
-
-  return data.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return {
+    ...notification,
+    read: Boolean(notification.read_at),
+    createdAt,
+    time: formatRelative(createdAt),
+  };
 }
 
 export default function NotificationsPage() {
-  const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
-    const studentId = user?.id as string | undefined;
-    const studentEmail = user?.email as string | undefined;
+  const loadNotifications = useCallback(async () => {
+    const resolved = await resolveCurrentUserContext();
+    const profileId = resolved?.profile?.id || resolved?.user.id;
 
-    if (!studentId && !studentEmail) {
-      setLoading(false);
-      setError("Unable to load notifications for this account.");
-      return;
+    if (!profileId) {
+      throw new Error("Unable to load notifications for this account.");
     }
 
-    supabase.auth.getUser()
-      .then(async ({ data: { user: authUser } }) => {
-        const metadataRegNo =
-          typeof authUser?.user_metadata?.reg_no === "string"
-            ? authUser.user_metadata.reg_no
-            : "";
+    const data = await fetchNotificationsForStudent({
+      id: profileId,
+      regNo: resolved?.regNo || undefined,
+      email: resolved?.email || undefined,
+    });
 
-        const myBooks = await fetchIssuedBooksByStudent({
-          id: studentId,
-          email: studentEmail,
-          regNo: metadataRegNo,
-        });
-
-        setIssuedBooks(myBooks);
-      })
-      .catch(() => setError("Failed to load notifications."))
-      .finally(() => setLoading(false));
+    setNotifications(data.map(toNotificationItem));
   }, []);
 
-  const notifications = useMemo(() => createNotifications(issuedBooks), [issuedBooks]);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        if (active) setError("");
+        await loadNotifications();
+      } catch (err) {
+        if (!active) return;
+        const message = err instanceof Error ? err.message : "Failed to load notifications.";
+        setError(message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void refresh();
+
+    const channel = supabase
+      .channel("notifications-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {
+        void refresh();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [loadNotifications]);
+
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+
+  const handleMarkAsRead = useCallback(async (ids: string[]) => {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+    if (uniqueIds.length === 0) return;
+
+    await markNotificationsAsRead(uniqueIds);
+    setNotifications((current) => current.map((notification) => (
+      uniqueIds.includes(notification.id)
+        ? { ...notification, read_at: notification.read_at || new Date().toISOString(), read: true }
+        : notification
+    )));
+  }, []);
 
   if (loading) {
     return (
@@ -162,9 +124,20 @@ export default function NotificationsPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Notifications</h1>
-        <p className="text-muted-foreground mt-1">{notifications.filter(n => !n.read).length} unread</p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Notifications</h1>
+          <p className="text-muted-foreground mt-1">{unreadCount} unread</p>
+        </div>
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={() => void handleMarkAsRead(notifications.filter((n) => !n.read).map((n) => n.id))}
+            className="inline-flex items-center justify-center rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Mark all as read
+          </button>
+        )}
       </div>
 
       {error && (
@@ -174,27 +147,39 @@ export default function NotificationsPage() {
       )}
 
       <div className="space-y-3">
-        {notifications.map(n => {
-          const Icon = icons[n.type] || Bell;
+        {notifications.map((notification) => {
+          const Icon = icons[notification.type] || Bell;
+          const unread = !notification.read;
           return (
-            <div key={n.id} className={`bg-card rounded-xl p-5 shadow-card border transition-shadow hover:shadow-elevated ${!n.read ? "border-secondary/30" : "border-border"}`}>
+            <div key={notification.id} className={`bg-card rounded-xl p-5 shadow-card border transition-shadow hover:shadow-elevated ${unread ? "border-secondary/30" : "border-border"}`}>
               <div className="flex items-start gap-4">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${!n.read ? "bg-secondary/10" : "bg-muted"}`}>
-                  <Icon className={`h-5 w-5 ${iconColors[n.type]}`} />
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${unread ? "bg-secondary/10" : "bg-muted"}`}>
+                  <Icon className={`h-5 w-5 ${iconColors[notification.type]}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-foreground text-sm">{n.title}</h3>
-                    {!n.read && <span className="w-2 h-2 rounded-full bg-secondary flex-shrink-0" />}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <h3 className="truncate text-sm font-medium text-foreground">{notification.title}</h3>
+                      {unread && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-secondary" />}
+                    </div>
+                    {unread && (
+                      <button
+                        type="button"
+                        onClick={() => void handleMarkAsRead([notification.id])}
+                        className="text-xs font-medium text-secondary hover:underline"
+                      >
+                        Mark read
+                      </button>
+                    )}
                   </div>
-                  <p className="text-muted-foreground text-sm mt-0.5">{n.message}</p>
-                  <p className="text-muted-foreground text-xs mt-2">{n.time}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{notification.message}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{notification.time}</p>
                 </div>
               </div>
             </div>
           );
         })}
-        {notifications.length === 0 && (
+        {notifications.length === 0 && !error && (
           <div className="bg-card rounded-xl p-6 shadow-card border border-border text-sm text-muted-foreground">
             No notifications right now.
           </div>

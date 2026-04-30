@@ -59,14 +59,87 @@ export interface UserProfile {
     name: string;
     email: string;
     role: "admin" | "librarian" | "student" | "faculty";
+    school?: string;
     department?: string;
     contact_number?: string;
     reg_no?: string;
     join_date: string;
 }
 
+export interface Magazine {
+    id: string;
+    title: string;
+    category: string;
+    uploaded_by: string;
+    file_url: string;
+    created_at: string;
+}
+
+export interface AcademicProgramme {
+    id?: string;
+    school: string;
+    department: string;
+    sheet_name: string;
+    unique_titles: number;
+    total_copies: number;
+    is_general_reference?: boolean;
+}
+
+export interface ProgrammeBook {
+    id: string;
+    school: string;
+    department: string;
+    sheet_name: string;
+    sort_order: number;
+    title: string;
+    author: string;
+    isbn: string;
+    call_no: string;
+    subject: string;
+    copies: number;
+    accession_numbers: string;
+}
+
+export type BookReservationStatus = "pending" | "approved" | "fulfilled" | "cancelled" | "rejected";
+
+export interface BookReservation {
+    id: string;
+    book_id: string;
+    book_title: string;
+    book_author?: string;
+    book_number?: string;
+    accession_no?: string;
+    student_user_id: string;
+    student_name: string;
+    student_email: string;
+    student_reg_no?: string;
+    status: BookReservationStatus;
+    notes?: string;
+    processed_by?: string;
+    processed_at?: string;
+    requested_at: string;
+    created_at?: string;
+}
+
+export type LibraryNotificationType = "due_soon" | "overdue" | "penalty" | "custom";
+
+export interface LibraryNotification {
+    id: string;
+    recipient_id: string;
+    sender_id?: string | null;
+    type: LibraryNotificationType;
+    title: string;
+    message: string;
+    related_book_id?: string | null;
+    created_at: string;
+    read_at?: string | null;
+    email_sent?: boolean | null;
+    meta?: Record<string, unknown> | null;
+}
+
 // Validation schema for profile updates
 export const profileUpdateSchema = z.object({
+    school: z.string().trim().max(120, "School must be less than 120 characters").optional(),
     department: z.string().trim().max(100, "Department must be less than 100 characters"),
     contact_number: z.string()
         .trim()

@@ -13,14 +13,17 @@ import ProfilePage from "./pages/ProfilePage";
 import OPACPage from "./pages/OPACPage";
 import DELNETPage from "./pages/DELNETPage";
 import IRINSPage from "./pages/IRINSPage";
+import EResourcesPage from "./pages/EResourcesPage";
 import ReportsPage from "./pages/ReportsPage";
 import OverduePage from "./pages/OverduePage";
 import ReturnBooksPage from "./pages/ReturnBooksPage";
+import ReservationsPage from "./pages/ReservationsPage";
 import MyBooksPage from "./pages/MyBooksPage";
 import FineDetailsPage from "./pages/FineDetailsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import SignupPage from "./pages/SignupPage";
 import VerifyOTPPage from "./pages/VerifyOTPPage";
+import AcademicProfilePage from "./pages/AcademicProfilePage";
 import RoleHomePage from "./pages/RoleHomePage";
 import NotFound from "./pages/NotFound";
 import { RequireAuth, RequireRole } from "./components/AuthGuards";
@@ -38,6 +41,14 @@ const App = () => (
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/verify-otp" element={<VerifyOTPPage />} />
+          <Route
+            path="/academic-profile"
+            element={(
+              <RequireAuth>
+                <AcademicProfilePage />
+              </RequireAuth>
+            )}
+          />
           <Route
             path="/dashboard"
             element={(
@@ -72,6 +83,14 @@ const App = () => (
               )}
             />
             <Route
+              path="reservations"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <ReservationsPage />
+                </RequireRole>
+              )}
+            />
+            <Route
               path="overdue"
               element={(
                 <RequireRole allowedRoles={["admin", "librarian"]}>
@@ -90,6 +109,14 @@ const App = () => (
             <Route path="profile" element={<ProfilePage />} />
             <Route path="opac" element={<OPACPage />} />
             <Route path="delnet" element={<DELNETPage />} />
+            <Route
+              path="e-resources"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian", "student", "faculty"]}>
+                  <EResourcesPage />
+                </RequireRole>
+              )}
+            />
             <Route
               path="irins"
               element={(

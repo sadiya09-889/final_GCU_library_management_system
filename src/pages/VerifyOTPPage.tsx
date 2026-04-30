@@ -73,7 +73,7 @@ export default function VerifyOTPPage() {
       return;
     }
 
-    navigate("/dashboard");
+    navigate("/academic-profile");
   };
 
   const handleResend = async () => {
