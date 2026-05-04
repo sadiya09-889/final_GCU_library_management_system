@@ -1,7 +1,8 @@
 import { BarChart3, Download, FileText, Loader2, PieChart, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { fetchBookRecordCount, fetchIssuedBooks, fetchOverdueBooks } from "@/lib/supabaseService";
-import type { IssuedBook } from "@/lib/types";
+import { fetchLibraryReportSummary, fetchLibraryMonthlyActivity } from "@/lib/supabaseService";
+import type { LibraryMonthlyActivityPoint } from "@/lib/supabaseService";
+import { jsPDF } from "jspdf";
 
 type SummaryState = {
   totalCollection: number;
@@ -21,35 +22,11 @@ const padY = 20;
 const plotW = chartW - padX * 2;
 const plotH = chartH - padY * 2;
 
-function getMonthKey(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-
-  const year = parsed.getFullYear();
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
 function formatMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split("-");
   const parsed = new Date(Number(year), Number(month) - 1, 1);
   if (Number.isNaN(parsed.getTime())) return monthKey;
   return parsed.toLocaleString("en-US", { month: "short", year: "2-digit" });
-}
-
-function buildMonthlyIssues(issuedBooks: IssuedBook[]): MonthlyIssuesPoint[] {
-  const counts = new Map<string, number>();
-
-  for (const row of issuedBooks) {
-    const key = getMonthKey(row.issue_date);
-    if (!key) continue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
-  return Array.from(counts.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([month, issues]) => ({ month, issues }));
 }
 
 function getPoint(index: number, value: number, pointCount: number, maxIssues: number) {
@@ -102,7 +79,7 @@ export default function ReportsPage() {
     currentlyIssued: 0,
     overdueBooks: 0,
   });
-  const [monthlyIssues, setMonthlyIssues] = useState<MonthlyIssuesPoint[]>([]);
+  const [monthlyActivity, setMonthlyActivity] = useState<LibraryMonthlyActivityPoint[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -111,20 +88,15 @@ export default function ReportsPage() {
       setLoading(true);
 
       try {
-        const [totalCollection, issuedBooks, overdueBooks] = await Promise.all([
-          fetchBookRecordCount(),
-          fetchIssuedBooks(),
-          fetchOverdueBooks(),
+        const [summaryResult, monthlyActivityResult] = await Promise.all([
+          fetchLibraryReportSummary(),
+          fetchLibraryMonthlyActivity(),
         ]);
 
         if (!active) return;
 
-        setSummary({
-          totalCollection,
-          currentlyIssued: issuedBooks.filter((book) => book.status === "issued").length,
-          overdueBooks: overdueBooks.length,
-        });
-        setMonthlyIssues(buildMonthlyIssues(issuedBooks));
+        setSummary(summaryResult);
+        setMonthlyActivity(monthlyActivityResult);
       } catch {
         if (!active) return;
 
@@ -133,7 +105,7 @@ export default function ReportsPage() {
           currentlyIssued: 0,
           overdueBooks: 0,
         });
-        setMonthlyIssues([]);
+        setMonthlyActivity([]);
       } finally {
         if (active) setLoading(false);
       }
@@ -145,6 +117,11 @@ export default function ReportsPage() {
       active = false;
     };
   }, []);
+
+  const monthlyIssues = useMemo(
+    () => monthlyActivity.map((point) => ({ month: point.month, issues: point.issues })),
+    [monthlyActivity],
+  );
 
   const maxIssues = useMemo(() => {
     if (monthlyIssues.length === 0) return 0;
@@ -158,6 +135,76 @@ export default function ReportsPage() {
     [monthlyIssues, maxIssues],
   );
 
+  const buildCsv = () => {
+    const rows = [
+      ["Report Summary"],
+      ["Total Collection", String(summary.totalCollection)],
+      ["Currently Issued", String(summary.currentlyIssued)],
+      ["Overdue Books", String(summary.overdueBooks)],
+      [""],
+      ["Monthly Activity"],
+      ["Month", "Issues", "Returns"],
+      ...monthlyActivity.map((point) => [
+        formatMonthLabel(point.month),
+        String(point.issues),
+        String(point.returns),
+      ]),
+    ];
+
+    return rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
+  };
+
+  const downloadBlob = (data: BlobPart, fileName: string, type: string) => {
+    const blob = new Blob([data], { type });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCsv = () => {
+    const csv = buildCsv();
+    downloadBlob(csv, "library-report.csv", "text/csv;charset=utf-8;");
+  };
+
+  const handleExportPdf = () => {
+    const doc = new jsPDF();
+    let y = 14;
+    doc.setFontSize(16);
+    doc.text("Library Report", 14, y);
+    y += 10;
+
+    doc.setFontSize(12);
+    doc.text(`Total Collection: ${summary.totalCollection}`, 14, y);
+    y += 6;
+    doc.text(`Currently Issued: ${summary.currentlyIssued}`, 14, y);
+    y += 6;
+    doc.text(`Overdue Books: ${summary.overdueBooks}`, 14, y);
+    y += 10;
+
+    doc.setFontSize(13);
+    doc.text("Monthly Activity", 14, y);
+    y += 8;
+
+    doc.setFontSize(11);
+    for (const point of monthlyActivity) {
+      if (y > 280) {
+        doc.addPage();
+        y = 14;
+      }
+      doc.text(
+        `${formatMonthLabel(point.month)}  Issues: ${point.issues}  Returns: ${point.returns}`,
+        14,
+        y,
+      );
+      y += 6;
+    }
+
+    doc.save("library-report.pdf");
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
@@ -166,10 +213,18 @@ export default function ReportsPage() {
           <p className="text-muted-foreground mt-1">Library performance overview</p>
         </div>
         <div className="flex gap-2">
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+          >
             <Download className="h-4 w-4" /> Export PDF
           </button>
-          <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+          >
             <FileText className="h-4 w-4" /> Export CSV
           </button>
         </div>
@@ -196,7 +251,7 @@ export default function ReportsPage() {
                 <div className="mt-3 bg-card rounded-xl p-5 shadow-card border border-border">
                   <h3 className="font-semibold text-foreground mb-3">Collection Count</h3>
                   <p className="text-sm text-muted-foreground">
-                    This value now counts book records in the library collection, not the sum of all copy totals.
+                    This value is aggregated directly from live library records.
                   </p>
                 </div>
               )}

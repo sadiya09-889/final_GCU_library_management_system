@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { AlertTriangle, Bell, Clock, IndianRupee, Loader2, Send, X } from "lucide-react";
-import { fetchOverdueBooks, checkAndUpdateOverdueBooks, fetchAvailableBooks, issueBook, fetchProfile } from "@/lib/supabaseService";
+import { fetchOverdueBooks, checkAndUpdateOverdueBooks, fetchAvailableBooks, issueBook, fetchProfile, sendOverdueNotificationForIssue } from "@/lib/supabaseService";
 import type { IssuedBook, Book } from "@/lib/types";
+import { toast } from "sonner";
 
 const FEE_PER_DAY = 2;
 
 export default function OverduePage() {
   const [notified, setNotified] = useState<string[]>([]);
+  const [notifyingId, setNotifyingId] = useState<string | null>(null);
   const [rawOverdue, setRawOverdue] = useState<IssuedBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [books, setBooks] = useState<Book[]>([]);
@@ -30,7 +32,10 @@ export default function OverduePage() {
     const due = new Date(i.due_date);
     const today = new Date();
     const daysOverdue = Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-    return { ...i, daysOverdue, penaltyFee: daysOverdue * FEE_PER_DAY };
+    const displayName = (i.student_id || "").toLowerCase() === "aimantaqia7@gmail.com" || i.student_name === "Teju"
+      ? "Aiman"
+      : i.student_name;
+    return { ...i, student_name: displayName, daysOverdue, penaltyFee: daysOverdue * FEE_PER_DAY };
   });
 
   const openIssue = (book: Book) => {
@@ -41,6 +46,24 @@ export default function OverduePage() {
     setSelectedBookForIssue(book);
     setIssueForm({ studentId: "" });
     setIssueModalOpen(true);
+  };
+
+  const handleNotify = async (issue: IssuedBook) => {
+    if (notifyingId) return;
+    setNotifyingId(issue.id);
+    try {
+      const didSend = await sendOverdueNotificationForIssue(issue);
+      if (didSend) {
+        toast.success("Notification sent to student");
+      } else {
+        toast.message("Notification already sent for this overdue item");
+      }
+      setNotified((prev) => (prev.includes(issue.id) ? prev : [...prev, issue.id]));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to send notification");
+    } finally {
+      setNotifyingId(null);
+    }
   };
 
   const handleIssueBook = async () => {
@@ -158,9 +181,11 @@ export default function OverduePage() {
                   {notified.includes(o.id) ? (
                     <span className="text-xs text-muted-foreground">Notified ✓</span>
                   ) : (
-                    <button onClick={() => setNotified(prev => [...prev, o.id])}
+                    <button
+                      onClick={() => void handleNotify(o)}
+                      disabled={notifyingId === o.id}
                       className="inline-flex items-center gap-1 text-xs font-medium text-secondary hover:underline">
-                      <Bell className="h-3 w-3" /> Notify
+                      <Bell className="h-3 w-3" /> {notifyingId === o.id ? "Notifying..." : "Notify"}
                     </button>
                   )}
                 </td>

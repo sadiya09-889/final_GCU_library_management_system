@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
+import { resolveCurrentUserContext } from "./accountRole";
 import { ACADEMIC_PROGRAMMES, getProgrammeRecommendationKeywords } from "./academicProgrammes";
-import type { AcademicProgramme, Book, BookReservation, BookReservationStatus, IssuedBook, LibraryNotification, Magazine, ProgrammeBook, UserProfile } from "./types";
+import type { AcademicProgramme, Book, BookReservation, BookReservationStatus, IssuedBook, LibraryNotification, LibraryNotificationType, Magazine, ProgrammeBook, UserProfile } from "./types";
 
 function normalizeBookPayload<T extends Partial<Omit<Book, "id">>>(book: T) {
     const date = book.date_of_purchase;
@@ -86,6 +87,18 @@ export interface FetchOpacBooksPageResult {
     books: Book[];
     total: number;
     source: "rpc" | "fallback";
+}
+
+export interface LibraryReportSummary {
+    totalCollection: number;
+    currentlyIssued: number;
+    overdueBooks: number;
+}
+
+export interface LibraryMonthlyActivityPoint {
+    month: string;
+    issues: number;
+    returns: number;
 }
 
 function sanitizeText(value: unknown, fallback = ""): string {
@@ -484,6 +497,118 @@ export async function fetchAvailableBookRecordCount(): Promise<number> {
     return count ?? 0;
 }
 
+async function fetchLibraryReportSummaryFallback(): Promise<LibraryReportSummary> {
+    const [totalCollection, issuedBooks, overdueBooks] = await Promise.all([
+        fetchBookRecordCount(),
+        supabase
+            .from("issued_books")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "issued"),
+        supabase
+            .from("issued_books")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "overdue"),
+    ]);
+
+    if (issuedBooks.error) throw issuedBooks.error;
+    if (overdueBooks.error) throw overdueBooks.error;
+
+    return {
+        totalCollection,
+        currentlyIssued: issuedBooks.count ?? 0,
+        overdueBooks: overdueBooks.count ?? 0,
+    };
+}
+
+export async function fetchLibraryReportSummary(): Promise<LibraryReportSummary> {
+    const { data, error } = await supabase.rpc("get_library_report_summary");
+
+    if (error) {
+        if (isMissingFunctionError(error, "get_library_report_summary")) {
+            return fetchLibraryReportSummaryFallback();
+        }
+
+        throw error;
+    }
+
+    const row = Array.isArray(data) ? data[0] : null;
+
+    return {
+        totalCollection: sanitizeInteger((row as { total_collection?: unknown } | null)?.total_collection, 0),
+        currentlyIssued: sanitizeInteger((row as { currently_issued?: unknown } | null)?.currently_issued, 0),
+        overdueBooks: sanitizeInteger((row as { overdue_books?: unknown } | null)?.overdue_books, 0),
+    };
+}
+
+function getAggregationMonthKey(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed.slice(0, 7);
+    }
+
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+}
+
+function buildMonthlyActivityFallback(issuedBooks: IssuedBook[]): LibraryMonthlyActivityPoint[] {
+    const now = new Date();
+    const monthStarts = Array.from({ length: 12 }, (_, idx) => new Date(now.getFullYear(), now.getMonth() - (11 - idx), 1));
+    const series = new Map(monthStarts.map((monthStart) => [
+        `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`,
+        { issues: 0, returns: 0 },
+    ]));
+
+    for (const issue of issuedBooks) {
+        const issueMonth = getAggregationMonthKey(issue.issue_date);
+        if (issueMonth && series.has(issueMonth)) {
+            series.get(issueMonth)!.issues += 1;
+        }
+
+        const returnMonth = getAggregationMonthKey(issue.return_date);
+        if (returnMonth && series.has(returnMonth)) {
+            series.get(returnMonth)!.returns += 1;
+        }
+    }
+
+    return monthStarts.map((monthStart) => {
+        const month = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}`;
+        const counts = series.get(month) ?? { issues: 0, returns: 0 };
+
+        return {
+            month,
+            issues: counts.issues,
+            returns: counts.returns,
+        };
+    });
+}
+
+export async function fetchLibraryMonthlyActivity(): Promise<LibraryMonthlyActivityPoint[]> {
+    const { data, error } = await supabase.rpc("get_library_monthly_activity");
+
+    if (error) {
+        if (isMissingFunctionError(error, "get_library_monthly_activity")) {
+            const issuedBooks = await fetchIssuedBooks();
+            return buildMonthlyActivityFallback(issuedBooks);
+        }
+
+        throw error;
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    return rows.map((row) => ({
+        month: sanitizeText((row as { month?: unknown; month_key?: unknown }).month ?? (row as { month_key?: unknown }).month_key),
+        issues: sanitizeInteger((row as { issues?: unknown; issue_count?: unknown }).issues ?? (row as { issue_count?: unknown }).issue_count, 0),
+        returns: sanitizeInteger((row as { returns?: unknown; return_count?: unknown }).returns ?? (row as { return_count?: unknown }).return_count, 0),
+    }));
+}
+
 export async function fetchBooksForDashboard(pageSize = 1000): Promise<Book[]> {
     const effectivePageSize = Math.max(1, Math.min(1000, Math.floor(pageSize)));
     const all: Book[] = [];
@@ -623,25 +748,25 @@ export async function fetchAvailableBooks(limit = 3): Promise<Book[]> {
 
 function getMissingMagazinesMessage(error: unknown) {
     if (isMissingRelationError(error, "magazines")) {
-        return "E-Resources magazines are not configured in Supabase yet. Run add_e_resources_magazines.sql in the SQL editor.";
+        return "No available magazines.";
     }
 
-    return getErrorMessage(error, "Magazine request failed");
+    return getErrorMessage(error, "No available magazines.");
 }
 
 function getMagazineStorageMessage(error: unknown) {
-    const message = getErrorMessage(error, "Magazine storage request failed");
+    const message = getErrorMessage(error, "No available magazines.");
     const lowerMessage = message.toLowerCase();
 
     if (lowerMessage.includes("bucket") && lowerMessage.includes("not found")) {
-        return "Magazine storage bucket is not configured yet. Run add_e_resources_magazines.sql in the SQL editor.";
+        return "No available magazines.";
     }
 
     if (lowerMessage.includes("row-level security") || lowerMessage.includes("permission")) {
-        return "You do not have permission to manage magazine files.";
+        return "No available magazines.";
     }
 
-    return message;
+    return "No available magazines.";
 }
 
 function sanitizeFileName(fileName: string) {
@@ -1023,6 +1148,25 @@ export async function uploadMagazine(input: UploadMagazineInput): Promise<Magazi
     if (userError) throw userError;
     if (!user) throw new Error("Please sign in to upload magazines");
 
+    const resolvedContext = await resolveCurrentUserContext(user);
+    if (!resolvedContext) {
+        throw new Error("Please sign in to upload magazines");
+    }
+
+    const { error: profileError } = await supabase.from("profiles").upsert({
+        id: user.id,
+        name: resolvedContext.name,
+        email: resolvedContext.email || user.email || "",
+        role: resolvedContext.role,
+        school: resolvedContext.school || null,
+        department: resolvedContext.department || null,
+        reg_no: resolvedContext.regNo || null,
+    });
+
+    if (profileError) {
+        throw new Error(getErrorMessage(profileError, "Unable to prepare your account for magazine uploads"));
+    }
+
     const uploadedAt = new Date().toISOString().replace(/[:.]/g, "-");
     const fileName = sanitizeFileName(input.file.name);
     const storagePath = `${user.id}/${uploadedAt}-${fileName}`;
@@ -1218,7 +1362,7 @@ export async function checkAndUpdateOverdueBooks(): Promise<void> {
     // Fetch all issued books where due_date has passed
     const { data, error } = await supabase
         .from("issued_books")
-        .select("id, due_date")
+        .select("id, book_id, book_title, due_date, student_id, student_email")
         .eq("status", "issued")
         .lt("due_date", today);
     if (error || !data || data.length === 0) return;
@@ -1228,6 +1372,10 @@ export async function checkAndUpdateOverdueBooks(): Promise<void> {
         .from("issued_books")
         .update({ status: "overdue" })
         .in("id", ids);
+
+    await Promise.all(data.map((issue) => (
+        sendOverdueNotificationForIssue(issue as IssuedBook).catch(() => undefined)
+    )));
 }
 
 async function fetchBookInventory(bookId: string) {
@@ -1662,12 +1810,14 @@ type NotificationLookup = {
     email?: string;
 };
 
+type NotificationRecipient = Pick<UserProfile, "id" | "email" | "reg_no">;
+
 function getMissingNotificationsTableMessage(error: unknown) {
     if (isMissingRelationError(error, "notifications")) {
-        return "Notifications are not configured in Supabase yet. Run supabase_add_notifications_table.sql in the SQL editor.";
+        return "No notifications available right now.";
     }
 
-    return getErrorMessage(error, "Failed to load notifications");
+    return getErrorMessage(error, "No notifications available right now.");
 }
 
 async function fetchNotificationProfiles(lookup: NotificationLookup): Promise<UserProfile[]> {
@@ -1683,6 +1833,101 @@ async function fetchNotificationProfiles(lookup: NotificationLookup): Promise<Us
     addProfile(lookup.email ? await fetchProfileByEmail(lookup.email) : null);
 
     return Array.from(matchedProfiles.values());
+}
+
+async function resolveNotificationRecipient(lookup: NotificationLookup): Promise<NotificationRecipient | null> {
+    const profiles = await fetchNotificationProfiles(lookup);
+    if (profiles.length > 0) {
+        const profile = profiles[0];
+        return { id: profile.id, email: profile.email, reg_no: profile.reg_no };
+    }
+
+    if (lookup.email) {
+        const byEmail = await fetchProfileByEmail(lookup.email);
+        if (byEmail) return { id: byEmail.id, email: byEmail.email, reg_no: byEmail.reg_no };
+    }
+
+    if (lookup.regNo) {
+        const byRegNo = await fetchProfile(lookup.regNo);
+        if (byRegNo) return { id: byRegNo.id, email: byRegNo.email, reg_no: byRegNo.reg_no };
+    }
+
+    if (lookup.id) {
+        const byId = await fetchProfile(lookup.id);
+        if (byId) return { id: byId.id, email: byId.email, reg_no: byId.reg_no };
+    }
+
+    return null;
+}
+
+async function notificationAlreadySent(params: {
+    recipientId: string;
+    type: LibraryNotificationType;
+    relatedBookId?: string | null;
+    issuedBookId?: string | null;
+}): Promise<boolean> {
+    let query = supabase
+        .from("notifications")
+        .select("id")
+        .eq("recipient_id", params.recipientId)
+        .eq("type", params.type)
+        .limit(1);
+
+    if (params.relatedBookId) {
+        query = query.eq("related_book_id", params.relatedBookId);
+    }
+
+    if (params.issuedBookId) {
+        query = query.eq("meta->>issued_book_id", params.issuedBookId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(getMissingNotificationsTableMessage(error));
+    return (data ?? []).length > 0;
+}
+
+export async function sendOverdueNotificationForIssue(issue: IssuedBook): Promise<boolean> {
+    const recipient = await resolveNotificationRecipient({
+        id: issue.student_id,
+        regNo: issue.student_id,
+        email: issue.student_email,
+    });
+
+    if (!recipient) {
+        throw new Error("Unable to locate the student profile for this overdue item");
+    }
+
+    const existing = await notificationAlreadySent({
+        recipientId: recipient.id,
+        type: "overdue",
+        relatedBookId: issue.book_id || null,
+        issuedBookId: issue.id,
+    });
+
+    if (existing) return false;
+
+    const dueDate = sanitizeText(issue.due_date);
+    const message = `Your book "${sanitizeText(issue.book_title, "Selected book")}" is overdue. Please return it as soon as possible.`;
+
+    const { error } = await supabase
+        .from("notifications")
+        .insert({
+            recipient_id: recipient.id,
+            type: "overdue",
+            title: "Book Overdue",
+            message,
+            related_book_id: issue.book_id || null,
+            meta: {
+                issued_book_id: issue.id,
+                student_reg_no: recipient.reg_no || issue.student_id,
+                student_email: sanitizeText(recipient.email).toLowerCase() || sanitizeText(issue.student_email).toLowerCase() || null,
+                due_date: dueDate || null,
+                notification_type: "overdue",
+            },
+        });
+
+    if (error) throw new Error(getMissingNotificationsTableMessage(error));
+    return true;
 }
 
 export async function fetchNotificationsForStudent(

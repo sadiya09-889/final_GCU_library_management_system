@@ -78,8 +78,7 @@ export default function NotificationsPage() {
         await loadNotifications();
       } catch (err) {
         if (!active) return;
-        const message = err instanceof Error ? err.message : "Failed to load notifications.";
-        setError(message);
+        setError(err instanceof Error && err.message.trim() ? "No notifications available right now." : "No notifications available right now.");
       } finally {
         if (active) setLoading(false);
       }

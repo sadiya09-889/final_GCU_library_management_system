@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile, fetchProgrammeBookRecommendations } from "@/lib/supabaseService";
+import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile, fetchProgrammeBookRecommendations, fetchLibraryMonthlyActivity } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
 import { getSchoolDisplayName } from "@/lib/academicProgrammes";
 import type { Book, IssuedBook, ProgrammeBook, UserProfile } from "@/lib/types";
+import type { LibraryMonthlyActivityPoint } from "@/lib/supabaseService";
 import { toast } from "sonner";
 import {
   ResponsiveContainer,
@@ -76,6 +77,7 @@ export default function DashboardPage() {
   const [previewBooks, setPreviewBooks] = useState<Book[]>([]);
   const [programmeRecommendations, setProgrammeRecommendations] = useState<ProgrammeBook[]>([]);
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
+  const [monthlyActivity, setMonthlyActivity] = useState<LibraryMonthlyActivityPoint[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [bookRecordCount, setBookRecordCount] = useState(0);
   const [availableBookRecordCount, setAvailableBookRecordCount] = useState(0);
@@ -132,6 +134,7 @@ export default function DashboardPage() {
         availableBookCountResult,
         previewBooksResult,
         issuedBooksResult,
+        monthlyActivityResult,
         usersResult,
         programmeRecommendationsResult,
       ] = await Promise.allSettled([
@@ -139,6 +142,7 @@ export default function DashboardPage() {
         fetchAvailableBookRecordCount(),
         fetchAvailableBooks(isStudent ? 3 : 4),
         fetchIssuedBooks(),
+        fetchLibraryMonthlyActivity(),
         canViewUsersAnalytics ? fetchProfiles() : Promise.resolve([] as UserProfile[]),
         isStudent
           ? fetchProgrammeBookRecommendations({ school: userSchool, department: userDepartment, limit: 10 })
@@ -167,6 +171,11 @@ export default function DashboardPage() {
         anySuccess = true;
       }
 
+      if (monthlyActivityResult.status === "fulfilled") {
+        setMonthlyActivity(monthlyActivityResult.value);
+        anySuccess = true;
+      }
+
       if (usersResult.status === "fulfilled") {
         setUsers(usersResult.value);
         anySuccess = true;
@@ -179,7 +188,7 @@ export default function DashboardPage() {
 
       if (!anySuccess && !loadErrorShownRef.current) {
         loadErrorShownRef.current = true;
-        toast.error("Unable to fetch dashboard analytics from Supabase");
+        toast.error("Unable to fetch dashboard analytics");
       }
 
       if (anySuccess && loadErrorShownRef.current) {
@@ -390,30 +399,7 @@ export default function DashboardPage() {
     };
   });
 
-  const monthlyAnalyticsData = Array.from({ length: 12 }, (_, idx) => {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth() - (11 - idx), 1);
-    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() - (11 - idx) + 1, 1);
-
-    const issues = issuedBooks.filter((i) => {
-      const issueDate = toDateOnly(i.issue_date);
-      if (!issueDate) return false;
-      return issueDate >= monthStart && issueDate < nextMonthStart;
-    }).length;
-
-    const returns = issuedBooks.filter((i) => {
-      if (!i.return_date) return false;
-      const returnDate = toDateOnly(i.return_date);
-      if (!returnDate) return false;
-      return returnDate >= monthStart && returnDate < nextMonthStart;
-    }).length;
-
-    return {
-      month: monthStart.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
-      issues,
-      returns,
-    };
-  });
+  const monthlyAnalyticsData = monthlyActivity;
 
   return (
     <div>
@@ -422,7 +408,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground mt-1">Welcome back, {user.name}. Here's an overview of the library.</p>
         {!isStudent && (
           <p className="text-xs text-muted-foreground mt-2">
-            {booksLoading ? "Loading detailed book analytics..." : `Live data loaded from Supabase: ${books.length} detailed book records`}
+            {booksLoading ? "Loading detailed book analytics..." : `Detailed book records loaded: ${books.length}`}
           </p>
         )}
       </div>

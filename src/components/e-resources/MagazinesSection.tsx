@@ -61,7 +61,7 @@ export default function MagazinesSection() {
       const data = await fetchMagazines();
       setMagazines(data);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to load magazines"));
+      toast.error(getErrorMessage(error, "No available magazines."));
     } finally {
       setLoading(false);
     }
