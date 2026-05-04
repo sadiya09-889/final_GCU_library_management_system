@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchProfile, updateProfile } from "@/lib/supabaseService";
 import { profileUpdateSchema, type UserProfile, type ProfileUpdateData } from "@/lib/types";
-import { isAppRole } from "@/lib/accountRole";
+import { isAppRole, isFacultyEmail } from "@/lib/accountRole";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -25,6 +25,13 @@ function getProfileRole(value: unknown): UserProfile["role"] {
     return value;
   }
   return "student";
+}
+
+function getDisplayRole(profile: UserProfile): UserProfile["role"] {
+  if (profile.role === "student" && isFacultyEmail(profile.email || "")) {
+    return "faculty";
+  }
+  return profile.role;
 }
 
 export default function ProfilePage() {
@@ -246,7 +253,7 @@ export default function ProfilePage() {
           <div className="flex-1">
             <h2 className="font-semibold text-xl text-foreground">{profile.name}</h2>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary/10 text-secondary capitalize mt-1">
-              <Shield className="h-3 w-3" /> {profile.role}
+              <Shield className="h-3 w-3" /> {getDisplayRole(profile)}
             </span>
           </div>
           {!editing && (
@@ -265,7 +272,7 @@ export default function ProfilePage() {
           {[
             { icon: Mail, label: "Email", value: profile.email },
             { icon: User, label: "Full Name", value: profile.name },
-            { icon: Shield, label: "Role", value: profile.role },
+            { icon: Shield, label: "Role", value: getDisplayRole(profile) },
             { icon: Calendar, label: "Member Since", value: new Date(profile.join_date).toLocaleDateString("en-US", { month: "long", year: "numeric" })},
           ].map(item => (
             <div key={item.label} className="flex items-center gap-3 py-3 border-b border-border">
