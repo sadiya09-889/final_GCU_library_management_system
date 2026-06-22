@@ -1341,13 +1341,19 @@ export async function fetchIssuedBooksByStudent(
     addProfile(directRegNo ? await fetchProfile(directRegNo) : null);
     addProfile(directEmail ? await fetchProfileByEmail(directEmail) : null);
 
+    const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+
+    // Collect all candidate student IDs (must be valid UUIDs)
     const candidateStudentIds = Array.from(new Set([
-        directId,
+        isUuid(directId) ? directId : "",
+        ...Array.from(matchedProfiles.values()).map((profile) => sanitizeText(profile.id)),
+    ].filter(Boolean)));
+
+    // Collect all candidate registration numbers (strings that are not UUIDs)
+    const candidateRegNos = Array.from(new Set([
+        (!isUuid(directId) && directId) ? directId : "",
         directRegNo,
-        ...Array.from(matchedProfiles.values()).flatMap((profile) => [
-            sanitizeText(profile.id),
-            sanitizeText(profile.reg_no),
-        ]),
+        ...Array.from(matchedProfiles.values()).map((profile) => sanitizeText(profile.reg_no)),
     ].filter(Boolean)));
 
     const candidateEmails = Array.from(new Set([
@@ -1355,7 +1361,7 @@ export async function fetchIssuedBooksByStudent(
         ...Array.from(matchedProfiles.values()).map((profile) => sanitizeText(profile.email).toLowerCase()),
     ].filter(Boolean)));
 
-    if (candidateStudentIds.length === 0 && candidateEmails.length === 0) {
+    if (candidateStudentIds.length === 0 && candidateRegNos.length === 0 && candidateEmails.length === 0) {
         return [];
     }
 
@@ -1367,6 +1373,16 @@ export async function fetchIssuedBooksByStudent(
                 .from("issued_books")
                 .select("*")
                 .in("student_id", candidateStudentIds)
+                .order("issue_date", { ascending: false }),
+        );
+    }
+
+    if (candidateRegNos.length > 0) {
+        issueQueries.push(
+            supabase
+                .from("issued_books")
+                .select("*")
+                .in("student_reg_no", candidateRegNos)
                 .order("issue_date", { ascending: false }),
         );
     }

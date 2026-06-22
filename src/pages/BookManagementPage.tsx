@@ -96,6 +96,8 @@ export default function BookManagementPage() {
   const [bookSearchText, setBookSearchText] = useState("");
   const [issueBookRecord, setIssueBookRecord] = useState<Book | null>(null);
   const [issueBookLoading, setIssueBookLoading] = useState(false);
+  const [bookSearchResults, setBookSearchResults] = useState<Book[]>([]);
+  const [hasSearchedBooks, setHasSearchedBooks] = useState(false);
   
   const [issuingSaving, setIssuingSaving] = useState(false);
 
