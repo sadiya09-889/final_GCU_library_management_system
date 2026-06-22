@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Award, Bell, BookMarked, BookOpen, Briefcase, Clock, Globe, Loader2, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
 import { fetchIssuedBooksByStudent } from "@/lib/supabaseService";
+import { resolveCurrentUserContext } from "@/lib/accountRole";
 import type { IssuedBook } from "@/lib/types";
 
 function toDateOnly(value: string | null | undefined): Date | null {
@@ -15,28 +15,54 @@ function toDateOnly(value: string | null | undefined): Date | null {
 
 export default function FacultyPage() {
   const navigate = useNavigate();
-  const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
+  const [user, setUser] = useState<{ id: string; name: string; email: string; regNo?: string } | null>(null);
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser()
-      .then(async ({ data: { user: authUser } }) => {
-        const regNo =
-          typeof authUser?.user_metadata?.reg_no === "string"
-            ? authUser.user_metadata.reg_no
-            : "";
+    let isMounted = true;
+
+    async function loadFacultyBooks() {
+      try {
+        const resolved = await resolveCurrentUserContext();
+        if (!resolved) {
+          navigate("/login", { replace: true });
+          return;
+        }
+
+        const facultyUser = {
+          id: resolved.user.id,
+          name: resolved.name,
+          email: resolved.email,
+          regNo: resolved.regNo,
+        };
+
+        if (isMounted) {
+          setUser(facultyUser);
+        }
 
         const books = await fetchIssuedBooksByStudent({
-          id: typeof user?.id === "string" ? user.id : "",
-          email: typeof user?.email === "string" ? user.email : "",
-          regNo,
+          id: facultyUser.id,
+          email: facultyUser.email,
+          regNo: facultyUser.regNo || "",
         });
 
-        setIssuedBooks(books);
-      })
-      .finally(() => setLoading(false));
-  }, [user?.email, user?.id]);
+        if (isMounted) {
+          setIssuedBooks(books);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadFacultyBooks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
 
   const activeBooks = useMemo(
     () => issuedBooks.filter((book) => book.status === "issued" || book.status === "overdue"),

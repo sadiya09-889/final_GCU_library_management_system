@@ -8,6 +8,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardLayout from "./components/DashboardLayout";
 import BooksPage from "./pages/BooksPage";
 import IssueBookPage from "./pages/IssueBookPage";
+import BookManagementPage from "./pages/BookManagementPage";
 import UsersPage from "./pages/UsersPage";
 import ProfilePage from "./pages/ProfilePage";
 import OPACPage from "./pages/OPACPage";
@@ -63,6 +64,14 @@ const App = () => (
               element={(
                 <RequireRole allowedRoles={["admin", "librarian"]}>
                   <BooksPage />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="book-management"
+              element={(
+                <RequireRole allowedRoles={["admin", "librarian"]}>
+                  <BookManagementPage />
                 </RequireRole>
               )}
             />

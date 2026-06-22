@@ -10,8 +10,11 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   name text not null,
   email text not null,
-  role text not null default 'student' check (role in ('admin', 'librarian', 'student')),
+  role text not null default 'student' check (role in ('admin', 'librarian', 'student', 'faculty')),
+  school text,
   department text,
+  contact_number text,
+  reg_no text,
   join_date date default current_date,
   created_at timestamptz default now()
 );

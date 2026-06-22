@@ -28,8 +28,9 @@ export interface Book {
     bill_number: string;
     price: number;
     call_no: string;
-    accession_no: string;
+    accession_no?: string;
     item_type: string;
+    no_of_copies?: number;
 }
 
 export interface IssuedBook {
@@ -39,6 +40,7 @@ export interface IssuedBook {
     student_name: string;
     student_id: string;
     student_email?: string;
+    student_reg_no?: string;
     issue_date: string;
     due_date: string;
     return_date?: string;
@@ -52,18 +54,21 @@ export interface IssuedBook {
         bindingIntact: boolean;
         cleanPages: boolean;
     };
+    renewal_count?: number;
+    last_renewed_at?: string;
 }
 
 export interface UserProfile {
     id: string;
     name: string;
     email: string;
-    role: "admin" | "librarian" | "student" | "faculty";
+    role: "admin" | "librarian" | "student" | "faculty" | "pending";
     school?: string;
     department?: string;
     contact_number?: string;
     reg_no?: string;
     join_date: string;
+    avatar_url?: string;
 }
 
 export interface Magazine {

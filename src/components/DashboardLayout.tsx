@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import gcuLogo from "@/assets/gcu-logo.png";
 import { supabase } from "@/lib/supabase";
-import { syncCurrentUserContext } from "@/lib/accountRole";
+import { inferUserRole, syncCurrentUserContext } from "@/lib/accountRole";
 
 interface NavItem {
   label: string;
@@ -18,13 +18,9 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard", roles: ["admin", "librarian", "student", "faculty"] },
   { label: "Books", icon: BookOpen, path: "/dashboard/books", roles: ["admin", "librarian"] },
-  { label: "Issue Books", icon: BookCopy, path: "/dashboard/issue", roles: ["admin", "librarian"] },
-  { label: "Return Books", icon: RotateCcw, path: "/dashboard/return", roles: ["admin", "librarian"] },
+  { label: "Book Management", icon: BookCopy, path: "/dashboard/book-management", roles: ["admin", "librarian"] },
   { label: "Reservations", icon: BookmarkCheck, path: "/dashboard/reservations", roles: ["admin", "librarian"] },
-  { label: "Overdue Management", icon: AlertTriangle, path: "/dashboard/overdue", roles: ["admin", "librarian"] },
   { label: "My Books", icon: BookMarked, path: "/dashboard/my-books", roles: ["student", "faculty"] },
-
-
   { label: "OPAC", icon: Search, path: "/dashboard/opac", roles: ["admin", "librarian", "student", "faculty"] },
   { label: "OPAC", icon: BookOpen, path: "/dashboard/opac", roles: ["admin", "librarian"] },
   { label: "DELNET", icon: Globe, path: "/dashboard/delnet", roles: ["admin", "librarian", "student", "faculty"] },
@@ -44,7 +40,7 @@ export default function DashboardLayout() {
   const location = useLocation();
 
   useEffect(() => {
-    const setUserFromSession = (session: { user: { user_metadata?: Record<string, string>; email?: string; id?: string } } | null) => {
+    const setUserFromSession = (session: { user: { user_metadata?: Record<string, string>; app_metadata?: Record<string, any>; email?: string; id?: string } } | null) => {
       if (!session) {
         sessionStorage.removeItem("gcu_user");
         navigate("/login");
@@ -54,10 +50,17 @@ export default function DashboardLayout() {
       syncCurrentUserContext(session.user as import("@supabase/supabase-js").User)
         .then((resolved) => {
           const u = session.user;
+          const fallbackRole = inferUserRole({
+            requestedRole: u.user_metadata?.role,
+            email: u.email,
+            regNo: u.user_metadata?.reg_no,
+            appMetadataRole: u.app_metadata?.library_role ?? u.app_metadata?.role,
+            currentRole: u.app_metadata?.library_role ?? u.app_metadata?.role,
+          });
           const userData = {
             id: u.id || "",
             name: resolved?.name || u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
-            role: resolved?.role || u.user_metadata?.role || "student",
+            role: resolved?.role || fallbackRole,
             email: resolved?.email || u.email || "",
             school: resolved?.school || u.user_metadata?.school || "",
             department: resolved?.department || u.user_metadata?.department || "",
@@ -74,7 +77,13 @@ export default function DashboardLayout() {
           const fallbackUserData = {
             id: u.id || "",
             name: u.user_metadata?.name || u.user_metadata?.full_name || u.email || "User",
-            role: u.user_metadata?.role || "student",
+            role: inferUserRole({
+              requestedRole: u.user_metadata?.role,
+              email: u.email,
+              regNo: u.user_metadata?.reg_no,
+              appMetadataRole: u.app_metadata?.library_role ?? u.app_metadata?.role,
+              currentRole: u.app_metadata?.library_role ?? u.app_metadata?.role,
+            }),
             email: u.email || "",
             school: u.user_metadata?.school || "",
             department: u.user_metadata?.department || "",
@@ -89,8 +98,15 @@ export default function DashboardLayout() {
         .finally(() => setLoading(false));
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserFromSession(session);
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("DashboardLayout session retrieval error, signing out:", error);
+        supabase.auth.signOut().then(() => {
+          setUserFromSession(null);
+        });
+      } else {
+        setUserFromSession(session);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -101,6 +117,46 @@ export default function DashboardLayout() {
   }, [navigate]);
 
   if (loading || !user) return null;
+
+  if (user.role === "pending") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+        <div className="w-full max-w-md bg-card border border-border rounded-2xl p-8 shadow-lg text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertTriangle className="h-8 w-8 text-destructive animate-pulse" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-foreground">Verification Pending</h1>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Your account registration is complete, but it is currently in a <strong>pending</strong> state.
+            </p>
+          </div>
+
+          <div className="bg-muted/40 rounded-xl p-4 text-xs text-muted-foreground text-left space-y-2 leading-relaxed">
+            <p>
+              <strong>Students:</strong> A valid registration/roll number is required. Unregistered profiles must be approved by the librarian before accessing library catalog and services.
+            </p>
+            <p>
+              <strong>Faculty:</strong> If your account has not been activated yet, please contact the library coordinator to approve your access.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out / Go Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Deduplicate nav items by path for the current role
   const seen = new Set<string>();

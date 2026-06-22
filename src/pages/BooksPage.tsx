@@ -673,9 +673,25 @@ export default function BooksPage() {
 
                 <div className="flex items-center justify-between gap-4 lg:justify-end">
                   <div className="text-right">
-                    <p className={`text-sm font-semibold ${available > 0 ? "text-accent-foreground" : "text-destructive"}`}>
-                      {available}/{total} available
-                    </p>
+                    <div className="flex flex-col items-end gap-1">
+                      <p className={`text-sm font-semibold ${available > 0 ? "text-accent-foreground" : "text-destructive"}`}>
+                        {available}/{total} available
+                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          safeNumber(b.no_of_copies, 1) > 1
+                            ? "bg-green-100 text-green-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}>
+                          {safeNumber(b.no_of_copies, 1)} {safeNumber(b.no_of_copies, 1) === 1 ? "copy" : "copies"}
+                        </span>
+                        {safeText(b.accession_no) && (
+                          <span className="text-xs text-muted-foreground truncate max-w-[120px]" title={safeText(b.accession_no)}>
+                            Acc: {safeText(b.accession_no).split(',')[0]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {yearOfPublication > 0 ? `Published ${yearOfPublication}` : "Year not specified"}
                     </p>

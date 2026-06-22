@@ -10,31 +10,69 @@ function getText(value: unknown) {
 }
 
 export function isAppRole(value: unknown): value is AppRole {
-  return value === "admin" || value === "librarian" || value === "student" || value === "faculty";
-}
-
-export function isFacultyEmail(email: string) {
-  return getText(email).toLowerCase().endsWith("@gcu.edu.in");
+  return value === "admin" || value === "librarian" || value === "student" || value === "faculty" || value === "pending";
 }
 
 export function inferUserRole(identity: {
   currentRole?: unknown;
+  requestedRole?: unknown;
   email?: unknown;
   regNo?: unknown;
+  profileRole?: unknown;
+  appMetadataRole?: unknown;
 }): AppRole {
-  if (identity.currentRole === "admin" || identity.currentRole === "librarian") {
-    return identity.currentRole;
+  // 1. Privileged role checks: admin/librarian must never be downgraded
+  const pRole = getText(identity.profileRole);
+  if (pRole === "admin" || pRole === "librarian") {
+    return pRole;
   }
 
+  const appRole = getText(identity.appMetadataRole);
+  if (appRole === "admin" || appRole === "librarian") {
+    return appRole;
+  }
+
+  const cRole = getText(identity.currentRole);
+  if (cRole === "admin" || cRole === "librarian") {
+    return cRole;
+  }
+
+  // 2. Member logic
+  // If reg_no exists and is non-empty, the role must always be student
   if (getText(identity.regNo)) {
     return "student";
   }
 
-  if (isFacultyEmail(getText(identity.email))) {
+  // Trusted non-privileged current role (faculty/student/pending) => use it.
+  if (isAppRole(identity.currentRole)) {
+    return identity.currentRole;
+  }
+
+  // If requestedRole is admin/librarian (privileged), reject it
+  const requested = getText(identity.requestedRole);
+  if (requested === "admin" || requested === "librarian") {
+    return "pending";
+  }
+
+  if (requested === "faculty") {
     return "faculty";
   }
 
-  return "student";
+  if (requested === "student") {
+    return "pending"; // requested student with no regNo => pending
+  }
+
+  return "pending"; // missing role/no regNo => pending
+}
+
+function getTrustedAppRole(authUser: User): AppRole | undefined {
+  const appRole = authUser.app_metadata?.library_role ?? authUser.app_metadata?.role;
+  return isAppRole(appRole) ? appRole : undefined;
+}
+
+function getRequestedMemberRole(authUser: User): "student" | "faculty" | undefined {
+  const requestedRole = authUser.user_metadata?.role;
+  return requestedRole === "student" || requestedRole === "faculty" ? requestedRole : undefined;
 }
 
 export async function resolveCurrentUserContext(sessionUser?: User | null) {
@@ -58,12 +96,19 @@ export async function resolveCurrentUserContext(sessionUser?: User | null) {
   const regNo = getText(profile?.reg_no) || getText(authUser.user_metadata?.reg_no);
   const school = getText(profile?.school) || getText(authUser.user_metadata?.school);
   const department = getText(profile?.department) || getText(authUser.user_metadata?.department);
-  const currentRole = isAppRole(profile?.role)
-    ? profile.role
-    : isAppRole(authUser.user_metadata?.role)
-      ? authUser.user_metadata.role
-      : undefined;
-  const role = inferUserRole({ currentRole, email, regNo });
+  
+  const profileRole = profile?.role;
+  const appMetadataRole = getTrustedAppRole(authUser);
+  const currentRole = isAppRole(profileRole) ? profileRole : appMetadataRole;
+  const requestedRole = getRequestedMemberRole(authUser);
+  const role = inferUserRole({
+    currentRole,
+    requestedRole,
+    email,
+    regNo,
+    profileRole,
+    appMetadataRole,
+  });
 
   return {
     user: authUser,
@@ -83,31 +128,56 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
 
   const { user, profile, name, email, regNo, school, department, role } = resolved;
 
-  if (
-    profile &&
-    (
-      getText(profile.name) !== name ||
-      getText(profile.email).toLowerCase() !== email ||
-      getText(profile.reg_no) !== regNo ||
-      getText(profile.school) !== school ||
-      getText(profile.department) !== department ||
-      profile.role !== role
-    )
-  ) {
+  const isPrivileged = profile?.role === "admin" || profile?.role === "librarian";
+
+  const profilePayload: Record<string, any> = {
+    id: user.id,
+    name,
+    email,
+    reg_no: regNo || null,
+    school: school || null,
+    department: department || null,
+  };
+
+  // If the profile role is already admin/librarian, we do NOT overwrite it from the client.
+  if (!isPrivileged) {
+    profilePayload.role = role;
+  }
+
+  if (!profile) {
+    // If no profile exists, create it (role can be admin/librarian if trusted app metadata says so)
+    profilePayload.role = role;
     try {
       await supabase
         .from("profiles")
-        .update({
-          name,
-          email,
-          reg_no: regNo || null,
-          school: school || null,
-          department: department || null,
-          role,
-        })
-        .eq("id", user.id);
+        .insert(profilePayload);
     } catch {
-      // Keep the resolved role available in the client even if the DB migration is not applied yet.
+      // The database trigger normally creates this row. If insert is blocked, continue with the resolved in-memory role.
+    }
+  } else {
+    const hasNameChanged = getText(profile.name) !== name;
+    const hasEmailChanged = getText(profile.email).toLowerCase() !== email;
+    const hasRegNoChanged = getText(profile.reg_no) !== regNo;
+    const hasSchoolChanged = getText(profile.school) !== school;
+    const hasDeptChanged = getText(profile.department) !== department;
+    const hasRoleChanged = !isPrivileged && profile.role !== role;
+
+    if (
+      hasNameChanged ||
+      hasEmailChanged ||
+      hasRegNoChanged ||
+      hasSchoolChanged ||
+      hasDeptChanged ||
+      hasRoleChanged
+    ) {
+      try {
+        await supabase
+          .from("profiles")
+          .update(profilePayload)
+          .eq("id", user.id);
+      } catch {
+        // Keep the resolved role available in the client even if the DB migration is not applied yet.
+      }
     }
   }
 
@@ -117,9 +187,11 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
   const metadataSchool = getText(user.user_metadata?.school);
   const metadataDepartment = getText(user.user_metadata?.department);
 
+  const finalMetadataRole = isPrivileged ? profile.role : role;
+
   if (
     metadataName !== name ||
-    metadataRole !== role ||
+    metadataRole !== finalMetadataRole ||
     metadataRegNo !== regNo ||
     metadataSchool !== school ||
     metadataDepartment !== department
@@ -129,7 +201,7 @@ export async function syncCurrentUserContext(sessionUser?: User | null) {
         data: {
           ...user.user_metadata,
           name,
-          role,
+          role: finalMetadataRole,
           reg_no: regNo || "",
           school: school || "",
           department: department || "",

@@ -254,6 +254,7 @@ function normalizeUploadBook(book: Partial<Book>): Partial<Omit<Book, "id">> {
         call_no: sanitizeText(book.call_no),
         accession_no: sanitizeText(book.accession_no),
         item_type: sanitizeText(book.item_type, "Book"),
+        no_of_copies: sanitizeInteger(book.no_of_copies, 1),
     };
 }
 
@@ -314,29 +315,34 @@ export async function bulkAddBooks(books: Partial<Book>[]): Promise<BulkUploadRe
         }
     }
 
-    // Step 2: Batch insert all valid books at once
+    // Step 2: Batch insert all valid books in chunks of 500
     let successful = 0;
     if (validBooks.length > 0) {
-        try {
-            const { error } = await supabase.from("books").insert(validBooks);
-            if (error) throw error;
-            successful = validBooks.length;
-        } catch (error) {
-            // If batch insert fails, try one-by-one so valid rows still go through.
-            for (let i = 0; i < validBooks.length; i++) {
-                const rowPayload = validBooks[i];
-                const rowNumber = validBookRows[i];
+        const CHUNK_SIZE = 500;
+        for (let i = 0; i < validBooks.length; i += CHUNK_SIZE) {
+            const chunk = validBooks.slice(i, i + CHUNK_SIZE);
+            const chunkRows = validBookRows.slice(i, i + CHUNK_SIZE);
+            try {
+                const { error } = await supabase.from("books").insert(chunk);
+                if (error) throw error;
+                successful += chunk.length;
+            } catch (error) {
+                // If batch insert fails, try one-by-one for this chunk so valid rows still go through.
+                for (let r = 0; r < chunk.length; r++) {
+                    const rowPayload = chunk[r];
+                    const rowNumber = chunkRows[r];
 
-                const { error: rowError } = await supabase.from("books").insert(rowPayload);
+                    const { error: rowError } = await supabase.from("books").insert(rowPayload);
 
-                if (rowError) {
-                    errors.push({
-                        row: rowNumber,
-                        bookNumber: sanitizeText(rowPayload.book_number, "N/A"),
-                        error: getBookConstraintMessage(rowError, "Failed to insert row"),
-                    });
-                } else {
-                    successful += 1;
+                    if (rowError) {
+                        errors.push({
+                            row: rowNumber,
+                            bookNumber: sanitizeText(rowPayload.book_number, "N/A"),
+                            error: getBookConstraintMessage(rowError, "Failed to insert row"),
+                        });
+                    } else {
+                        successful += 1;
+                    }
                 }
             }
         }
@@ -733,6 +739,56 @@ export async function fetchBookByBookNumber(bookNumber: string): Promise<Book | 
     return (data as Book | null) ?? null;
 }
 
+export async function searchBooksForIssue(query: string): Promise<Book[]> {
+    const term = typeof query === "string" ? query.trim() : "";
+    if (!term) return [];
+
+    // Query books with available > 0 first
+    const { data: availableData, error: availableError } = await supabase
+        .from("books")
+        .select("id, title, author, book_number, accession_no, call_no, available, total, category")
+        .or(`book_number.eq.${term},book_number.ilike.%${term}%,accession_no.eq.${term},accession_no.ilike.%${term}%,title.ilike.%${term}%,isbn.ilike.%${term}%`)
+        .gt("available", 0)
+        .limit(20);
+
+    if (availableError) throw availableError;
+
+    let results = availableData ?? [];
+
+    // If no available books match, fetch matching books that are out of stock (available = 0)
+    if (results.length === 0) {
+        const { data: outOfStockData, error: outOfStockError } = await supabase
+            .from("books")
+            .select("id, title, author, book_number, accession_no, call_no, available, total, category")
+            .or(`book_number.eq.${term},book_number.ilike.%${term}%,accession_no.eq.${term},accession_no.ilike.%${term}%,title.ilike.%${term}%,isbn.ilike.%${term}%`)
+            .limit(20);
+
+        if (outOfStockError) throw outOfStockError;
+        results = outOfStockData ?? [];
+    }
+
+    // Sort matches: exact book_number match first, then exact accession_no match, then others
+    const sorted = results.sort((a: any, b: any) => {
+        const aNum = (a.book_number || "").toLowerCase();
+        const bNum = (b.book_number || "").toLowerCase();
+        const termLower = term.toLowerCase();
+        
+        const aExactNum = aNum === termLower;
+        const bExactNum = bNum === termLower;
+        if (aExactNum && !bExactNum) return -1;
+        if (!aExactNum && bExactNum) return 1;
+
+        const aExactAcc = (a.accession_no || "").toLowerCase() === termLower;
+        const bExactAcc = (b.accession_no || "").toLowerCase() === termLower;
+        if (aExactAcc && !bExactAcc) return -1;
+        if (!aExactAcc && bExactAcc) return 1;
+
+        return 0;
+    });
+
+    return sorted as Book[];
+}
+
 export async function fetchAvailableBooks(limit = 3): Promise<Book[]> {
     const safeLimit = Math.max(1, Math.min(1000, Math.floor(limit)));
     const { data, error } = await supabase
@@ -831,6 +887,7 @@ function normalizeBookRecord(row: Partial<Book>): Book {
         call_no: sanitizeText(row.call_no),
         accession_no: sanitizeText(row.accession_no),
         item_type: sanitizeText(row.item_type, "Book"),
+        no_of_copies: sanitizeInteger(row.no_of_copies, 1),
     };
 }
 
@@ -1449,6 +1506,14 @@ export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBo
     const bookId = typeof issue.book_id === "string" ? issue.book_id.trim() : "";
     if (!bookId) throw new Error("Book is required to issue");
 
+    const matchedProfile = await fetchProfile(issue.student_id);
+    if (!matchedProfile) {
+        throw new Error("Student not registered in portal.");
+    }
+    if (matchedProfile.role !== "student") {
+        throw new Error("Books can only be issued to registered students.");
+    }
+
     let previousAvailable = 0;
     let nextAvailable = 0;
     let decremented = false;
@@ -1473,13 +1538,22 @@ export async function issueBook(issue: Omit<IssuedBook, "id">): Promise<IssuedBo
 
     if (!decremented) throw new Error("Book availability changed. Please try again.");
 
-    const matchedProfile = await fetchProfile(issue.student_id);
-    const resolvedStudentId = sanitizeText(matchedProfile?.reg_no, sanitizeText(issue.student_id));
-    const resolvedStudentEmail = sanitizeText(issue.student_email, sanitizeText(matchedProfile?.email)).toLowerCase();
+    const resolvedStudentId = matchedProfile.id;
+    const resolvedStudentEmail = sanitizeText(issue.student_email, sanitizeText(matchedProfile.email)).toLowerCase();
+    
+    // Enforce exactly 15-day return due date from issue date
+    const todayStr = issue.issue_date || new Date().toISOString().split("T")[0];
+    const today = new Date(todayStr);
+    const due = new Date(today);
+    due.setDate(due.getDate() + 15);
+    const resolvedDueDate = due.toISOString().split("T")[0];
+
     const insertPayload: Record<string, unknown> = {
         ...issue,
+        due_date: resolvedDueDate,
         student_id: resolvedStudentId,
         student_email: resolvedStudentEmail || null,
+        student_reg_no: matchedProfile.reg_no || null,
     };
 
     let data: IssuedBook | null = null;
@@ -1645,8 +1719,125 @@ export async function returnBook(id: string, qualityCheck?: ReturnQualityCheck):
         throw error;
     }
 
+    // Persistent penalty insertion if overdue at the time of return
+    const penaltyFee = calculatePenalty(existingIssue);
+    if (penaltyFee > 0) {
+        const due = new Date(existingIssue.due_date);
+        const today = new Date();
+        const days = Math.max(0, Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
+        try {
+            await supabase
+                .from("penalties")
+                .insert({
+                    student_id: existingIssue.student_id,
+                    issued_book_id: existingIssue.id,
+                    days_overdue: days,
+                    fine_per_day: 2,
+                    total_fine: penaltyFee,
+                    status: "pending",
+                    calculated_at: new Date().toISOString(),
+                });
+        } catch (penaltyErr) {
+            console.error("Failed to insert persistent penalty record:", penaltyErr);
+        }
+    }
+
     return returnedIssue as IssuedBook;
 }
+
+export async function renewBook(id: string): Promise<IssuedBook> {
+    const { data: existingIssue, error: existingError } = await supabase
+        .from("issued_books")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (!existingIssue) throw new Error("Issued record not found");
+    if (existingIssue.status === "returned") throw new Error("Returned books cannot be renewed");
+
+    // Enforce max 2 renewals
+    const renewalCount = sanitizeInteger(existingIssue.renewal_count, 0);
+    if (renewalCount >= 2) throw new Error("Maximum renewal limit of 2 reached.");
+
+    // Calculate new due date by adding 15 days to the current due date (or current date if already overdue)
+    const baseDate = new Date(existingIssue.due_date);
+    const today = new Date();
+    const start = baseDate > today ? baseDate : today;
+    const newDueDate = new Date(start);
+    newDueDate.setDate(newDueDate.getDate() + 15);
+
+    const nextRenewalCount = renewalCount + 1;
+    const lastRenewedAt = new Date().toISOString();
+
+    const { data, error } = await supabase
+        .from("issued_books")
+        .update({
+            due_date: newDueDate.toISOString().split("T")[0],
+            renewal_count: nextRenewalCount,
+            last_renewed_at: lastRenewedAt,
+            status: "issued" // Reset status from overdue to issued if it was overdue
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data as IssuedBook;
+}
+
+export async function renewIssuedBook(id: string): Promise<IssuedBook> {
+    return renewBook(id);
+}
+
+export function calculatePenalty(issue: IssuedBook, today?: Date): number {
+    if (issue.status === "returned") return 0;
+    const due = new Date(issue.due_date);
+    due.setHours(0, 0, 0, 0);
+    const targetDate = today || new Date();
+    targetDate.setHours(0, 0, 0, 0);
+
+    if (targetDate <= due) return 0;
+    const diffMs = targetDate.getTime() - due.getTime();
+    const daysOverdue = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    return daysOverdue * 2; // ₹2/day
+}
+
+export async function fetchPendingReturns(): Promise<IssuedBook[]> {
+    const { data, error } = await supabase
+        .from("issued_books")
+        .select("*")
+        .in("status", ["issued", "overdue"])
+        .order("due_date", { ascending: true });
+
+    if (error) throw error;
+    return (data ?? []) as IssuedBook[];
+}
+
+export async function fetchStudentIssuedBooks(
+    studentProfile: string | { id?: string; regNo?: string; email?: string }
+): Promise<IssuedBook[]> {
+    return fetchIssuedBooksByStudent(studentProfile);
+}
+
+export async function fetchStudentPenalties(studentId: string): Promise<any[]> {
+    const { data, error } = await supabase
+        .from("penalties")
+        .select("*, issued_books(book_title)")
+        .eq("student_id", studentId)
+        .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function payPenalty(penaltyId: string): Promise<void> {
+    const { error } = await supabase
+        .from("penalties")
+        .update({ status: "paid", paid_at: new Date().toISOString() })
+        .eq("id", penaltyId);
+    if (error) throw error;
+}
+
 
 // ─── Profiles ───────────────────────────────────────────
 
@@ -1907,7 +2098,7 @@ export async function sendOverdueNotificationForIssue(issue: IssuedBook): Promis
     if (existing) return false;
 
     const dueDate = sanitizeText(issue.due_date);
-    const message = `Your book "${sanitizeText(issue.book_title, "Selected book")}" is overdue. Please return it as soon as possible.`;
+    const message = `Your book "${sanitizeText(issue.book_title, "Selected book")}" was due on ${dueDate}. It is overdue and accumulating a penalty at ₹2/day. Please return it as soon as possible.`;
 
     const { error } = await supabase
         .from("notifications")
@@ -2115,3 +2306,29 @@ export async function updateStudentAcademicProfile(
         department,
     };
 }
+
+export async function searchStudents(query: string): Promise<UserProfile[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const escaped = trimmed.replace(/[%_]/g, (match) => `\\${match}`);
+    const orFilter = [
+        `name.ilike.%${escaped}%`,
+        `email.ilike.%${escaped}%`,
+        `reg_no.ilike.%${escaped}%`,
+        `school.ilike.%${escaped}%`,
+        `department.ilike.%${escaped}%`,
+    ].join(",");
+
+    const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "student")
+        .or(orFilter)
+        .order("name")
+        .limit(10);
+
+    if (error) throw error;
+    return (data ?? []) as UserProfile[];
+}
+

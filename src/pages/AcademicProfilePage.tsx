@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, BookOpen, Building2, Check, GraduationCap, Library, Loader2 } from "lucide-react";
 import campusImage from "@/assets/campus.jpeg";
 import { supabase } from "@/lib/supabase";
-import { syncCurrentUserContext } from "@/lib/accountRole";
+import { inferUserRole, syncCurrentUserContext } from "@/lib/accountRole";
 import { fetchAcademicProgrammes, updateStudentAcademicProfile } from "@/lib/supabaseService";
 import { ACADEMIC_PROGRAMMES, getSchoolDisplayName, groupProgrammesBySchool } from "@/lib/academicProgrammes";
 import type { AcademicProgramme } from "@/lib/types";
@@ -87,11 +87,18 @@ export default function AcademicProfilePage() {
 
       const resolved = await syncCurrentUserContext();
       const existingUser = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
+      const fallbackRole = inferUserRole({
+        requestedRole: user.user_metadata?.role,
+        email: user.email,
+        regNo: user.user_metadata?.reg_no,
+        appMetadataRole: user.app_metadata?.library_role ?? user.app_metadata?.role,
+        currentRole: user.app_metadata?.library_role ?? user.app_metadata?.role,
+      });
       const userData = {
         ...existingUser,
         id: user.id,
         name: resolved?.name || user.user_metadata?.name || user.email || "User",
-        role: resolved?.role || user.user_metadata?.role || "student",
+        role: resolved?.role || fallbackRole,
         email: resolved?.email || user.email || "",
         school,
         department,

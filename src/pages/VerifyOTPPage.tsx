@@ -3,11 +3,18 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { BookOpen, GraduationCap, RotateCcw } from "lucide-react";
 import campusImage from "@/assets/campus.jpeg";
 import { supabase } from "@/lib/supabase";
+import { syncCurrentUserContext } from "@/lib/accountRole";
+
+const OTP_LENGTH = 6;
+
+function createEmptyOtp() {
+  return Array.from({ length: OTP_LENGTH }, () => "");
+}
 
 export default function VerifyOTPPage() {
   const [searchParams] = useSearchParams();
-  const email = searchParams.get("email") || "";
-  const [otp, setOtp] = useState(["", "", "", "", "", "", "", ""]);
+  const email = (searchParams.get("email") || "").trim().toLowerCase();
+  const [otp, setOtp] = useState(createEmptyOtp);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +30,7 @@ export default function VerifyOTPPage() {
     setOtp(newOtp);
 
     // Auto-advance to next box
-    if (digit && index < 7) {
+    if (digit && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -36,21 +43,28 @@ export default function VerifyOTPPage() {
 
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 8);
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
     const newOtp = [...otp];
     pasted.split("").forEach((char, i) => { newOtp[i] = char; });
     setOtp(newOtp);
     // Focus last filled box
-    const lastIndex = Math.min(pasted.length, 7);
+    const lastIndex = Math.min(pasted.length, OTP_LENGTH - 1);
     inputRefs.current[lastIndex]?.focus();
   };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
+
+    if (!email) {
+      setError("Email is missing. Please sign up again.");
+      return;
+    }
+
     const token = otp.join("");
-    if (token.length < 8) {
-      setError("Please enter the complete 8-digit OTP.");
+    if (token.length < OTP_LENGTH) {
+      setError(`Please enter the complete ${OTP_LENGTH}-digit OTP.`);
       return;
     }
 
@@ -58,11 +72,11 @@ export default function VerifyOTPPage() {
     const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token,
-      type: "email",
+      type: "signup",
     });
-    setLoading(false);
 
     if (verifyError) {
+      setLoading(false);
       if (verifyError.message.toLowerCase().includes("expired")) {
         setError("OTP has expired. Please request a new one.");
       } else if (verifyError.message.toLowerCase().includes("invalid")) {
@@ -73,21 +87,58 @@ export default function VerifyOTPPage() {
       return;
     }
 
-    navigate("/academic-profile");
+    let resolved: Awaited<ReturnType<typeof syncCurrentUserContext>>;
+    try {
+      resolved = await syncCurrentUserContext();
+    } catch {
+      setLoading(false);
+      setError("Email verified, but the account profile could not be loaded. Please sign in again.");
+      return;
+    }
+
+    setLoading(false);
+
+    if (resolved?.role === "faculty") {
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+
+    if (resolved?.role === "student" && (!resolved.school || !resolved.department)) {
+      navigate("/academic-profile", { replace: true });
+      return;
+    }
+
+    navigate("/dashboard", { replace: true });
   };
 
   const handleResend = async () => {
     setError("");
     setSuccess("");
+    if (!email) {
+      setError("Email is missing. Please sign up again.");
+      return;
+    }
+
     setResending(true);
-    const { error: resendError } = await supabase.auth.resend({ email, type: "signup" });
+    const { error: resendError } = await supabase.auth.resend({
+      email,
+      type: "signup",
+      options: {
+        emailRedirectTo: `${window.location.origin}/verify-otp?email=${encodeURIComponent(email)}`,
+      },
+    });
     setResending(false);
 
     if (resendError) {
-      setError(resendError.message);
+      const message = resendError.message.toLowerCase();
+      if (message.includes("rate limit") || message.includes("security purposes")) {
+        setError("Please wait before requesting another OTP.");
+      } else {
+        setError(resendError.message);
+      }
     } else {
       setSuccess("A new OTP has been sent to your email.");
-      setOtp(["", "", "", "", "", ""]);
+      setOtp(createEmptyOtp());
       inputRefs.current[0]?.focus();
     }
   };
@@ -123,7 +174,7 @@ export default function VerifyOTPPage() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Verify Your Email</h1>
-              <p className="text-muted-foreground text-sm">Enter the 8-digit OTP sent to your email</p>
+              <p className="text-muted-foreground text-sm">Enter the {OTP_LENGTH}-digit OTP sent to your email</p>
             </div>
           </div>
 
@@ -139,7 +190,7 @@ export default function VerifyOTPPage() {
               <label className="block text-sm font-medium text-foreground mb-4 text-center">
                 Enter Verification Code
               </label>
-              <div className="flex gap-3 justify-center" onPaste={handlePaste}>
+              <div className="flex gap-1.5 sm:gap-3 justify-center" onPaste={handlePaste}>
                 {otp.map((digit, index) => (
                   <input
                     key={index}
@@ -150,7 +201,7 @@ export default function VerifyOTPPage() {
                     value={digit}
                     onChange={e => handleChange(index, e.target.value)}
                     onKeyDown={e => handleKeyDown(index, e)}
-                    className="w-12 h-14 text-center text-2xl font-bold rounded-lg border-2 border-border bg-card text-foreground focus:outline-none focus:border-secondary focus:ring-2 focus:ring-secondary/30 transition"
+                    className="w-9 sm:w-12 h-11 sm:h-14 text-center text-lg sm:text-2xl font-bold rounded-lg border-2 border-border bg-card text-foreground focus:outline-none focus:border-secondary focus:ring-2 focus:ring-secondary/30 transition"
                   />
                 ))}
               </div>

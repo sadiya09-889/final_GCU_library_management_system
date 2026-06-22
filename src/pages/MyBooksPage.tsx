@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { BookOpen, RefreshCw, Clock, AlertTriangle, Loader2, BookmarkCheck, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import type { BookReservation, IssuedBook } from "@/lib/types";
-import { cancelBookReservation, fetchBookReservationsByStudent, fetchIssuedBooksByStudent } from "@/lib/supabaseService";
-import { supabase } from "@/lib/supabase";
+import { cancelBookReservation, fetchBookReservationsByStudent, fetchIssuedBooksByStudent, renewBook, calculatePenalty } from "@/lib/supabaseService";
+import { resolveCurrentUserContext } from "@/lib/accountRole";
 
 function getReservationStatusClass(status: BookReservation["status"]) {
   if (status === "pending") return "bg-secondary/10 text-secondary";
@@ -14,39 +14,45 @@ function getReservationStatusClass(status: BookReservation["status"]) {
 }
 
 export default function MyBooksPage() {
-  const [renewals, setRenewals] = useState<Record<string, number>>({});
+  const [renewingIds, setRenewingIds] = useState<string[]>([]);
   const [issuedBooks, setIssuedBooks] = useState<IssuedBook[]>([]);
   const [reservations, setReservations] = useState<BookReservation[]>([]);
   const [cancellingIds, setCancellingIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const MAX_RENEWALS = 2;
-  const user = JSON.parse(sessionStorage.getItem("gcu_user") || "{}");
 
   useEffect(() => {
-    supabase.auth.getUser()
-      .then(async ({ data: { user: authUser } }) => {
-        const metadataRegNo =
-          typeof authUser?.user_metadata?.reg_no === "string"
-            ? authUser.user_metadata.reg_no
-            : "";
+    let active = true;
 
+    resolveCurrentUserContext()
+      .then(async (resolved) => {
+        if (!resolved) return;
         const [myBooksResult, myReservationsResult] = await Promise.allSettled([
           fetchIssuedBooksByStudent({
-            id: typeof user?.id === "string" ? user.id : "",
-            email: typeof user?.email === "string" ? user.email : "",
-            regNo: metadataRegNo,
+            id: resolved.user.id,
+            email: resolved.email,
+            regNo: resolved.regNo,
           }),
-          typeof user?.id === "string" && user.id
-            ? fetchBookReservationsByStudent(user.id)
-            : Promise.resolve([] as BookReservation[]),
+          fetchBookReservationsByStudent(resolved.user.id),
         ]);
 
-        if (myBooksResult.status === "fulfilled") setIssuedBooks(myBooksResult.value);
-        if (myReservationsResult.status === "fulfilled") setReservations(myReservationsResult.value);
+        if (!active) return;
+        if (myBooksResult.status === "fulfilled") {
+          setIssuedBooks(myBooksResult.value);
+        }
+        if (myReservationsResult.status === "fulfilled") {
+          setReservations(myReservationsResult.value);
+        }
       })
       .catch(() => { })
-      .finally(() => setLoading(false));
-  }, [user?.email, user?.id]);
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleCancelReservation = async (reservationId: string) => {
     setCancellingIds(prev => Array.from(new Set([...prev, reservationId])));
@@ -62,10 +68,27 @@ export default function MyBooksPage() {
     }
   };
 
-  const handleRenew = (id: string) => {
-    const count = renewals[id] || 0;
-    if (count >= MAX_RENEWALS) return;
-    setRenewals(prev => ({ ...prev, [id]: count + 1 }));
+  const handleRenew = async (id: string) => {
+    setRenewingIds(prev => [...prev, id]);
+    try {
+      const updated = await renewBook(id);
+      toast.success(`Book renewed successfully! New due date: ${updated.due_date}`);
+      
+      // Refresh list
+      const resolved = await resolveCurrentUserContext();
+      if (resolved) {
+        const myBooks = await fetchIssuedBooksByStudent({
+          id: resolved.user.id,
+          email: resolved.email,
+          regNo: resolved.regNo,
+        });
+        setIssuedBooks(myBooks);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to renew book");
+    } finally {
+      setRenewingIds(prev => prev.filter(item => item !== id));
+    }
   };
 
   if (loading) {
@@ -114,8 +137,15 @@ export default function MyBooksPage() {
 
       <div className="space-y-3">
         {issuedBooks.map(book => {
-          const renewCount = renewals[book.id] || 0;
+          const renewCount = book.renewal_count || 0;
+          const isRenewing = renewingIds.includes(book.id);
           const canRenew = book.status === "issued" && renewCount < MAX_RENEWALS;
+          const penaltyFee = calculatePenalty(book);
+          
+          const due = new Date(book.due_date);
+          const today = new Date();
+          const daysOverdue = book.status === "overdue" ? Math.max(0, Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+
           return (
             <div key={book.id} className="bg-card rounded-xl p-5 shadow-card border border-border">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -128,7 +158,12 @@ export default function MyBooksPage() {
                     <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
                       <span>Issued: {book.issue_date}</span>
                       <span>Due: {book.due_date}</span>
-                      {renewCount > 0 && <span className="text-secondary">Renewed {renewCount}x</span>}
+                      {renewCount > 0 && <span className="text-secondary font-medium">Renewed {renewCount}x</span>}
+                      {daysOverdue > 0 && (
+                        <span className="text-destructive font-bold bg-destructive/10 px-2 py-0.5 rounded">
+                          {daysOverdue} days overdue · Fine: ₹{penaltyFee}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -138,9 +173,13 @@ export default function MyBooksPage() {
                     {book.status}
                   </span>
                   {canRenew && (
-                    <button onClick={() => handleRenew(book.id)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity">
-                      <RefreshCw className="h-3 w-3" /> Renew
+                    <button 
+                      onClick={() => void handleRenew(book.id)}
+                      disabled={isRenewing}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {isRenewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} 
+                      Renew
                     </button>
                   )}
                   {book.status === "issued" && renewCount >= MAX_RENEWALS && (

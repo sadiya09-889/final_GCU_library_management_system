@@ -32,6 +32,9 @@ dist-ssr
 # Temp files
 tmpclaude-*
 
+# Local automation/audit artifacts
+.autoclaw/
+
 # Lock files
 *.lockb
 

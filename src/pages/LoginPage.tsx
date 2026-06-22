@@ -34,7 +34,7 @@ export default function LoginPage() {
       if (authError.message === "Failed to fetch" || authError.message.includes("fetch")) {
         setError("Cannot connect to the server. Please check your internet connection or try again later.");
       } else if (message.includes("email_not_confirmed") || message.includes("email not confirmed")) {
-        setError("Email is not confirmed in Supabase. Confirm the user in Authentication -> Users, then try again.");
+        setError("Email is not confirmed yet. Please open the confirmation link sent to your email, then try again.");
       } else if (message.includes("invalid_credentials") || message.includes("invalid login credentials") || message.includes("invalid")) {
         setError("Invalid email or password, or this user is not created yet in Supabase Auth.");
       } else {
@@ -82,7 +82,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-2xl font-semibold text-foreground">Library Portal</h1>
-              <p className="text-muted-foreground text-sm">Students use registered email with reg no, faculty use GCU email</p>
+              <p className="text-muted-foreground text-sm">Sign in with the email used for your library account</p>
             </div>
           </div>
 
@@ -90,7 +90,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                placeholder="admin@gcu.edu.in"
+                placeholder="name@example.com"
                 className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition" />
             </div>
             <div>

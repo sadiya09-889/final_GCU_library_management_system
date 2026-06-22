@@ -31,24 +31,127 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
   const parseBooksFromFile = async (file: File): Promise<Partial<Book>[]> => {
     const fileName = file.name.toLowerCase();
 
-    if (fileName.endsWith(".csv")) {
-      const text = await file.text();
-      return parseBooksCsv(text);
+    if (!fileName.endsWith(".csv") && !fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) {
+      throw new Error("Unsupported file type. Please upload .csv, .xlsx, or .xls file.");
     }
 
-    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-      const { read, utils } = await import("xlsx");
-      const workbook = read(await file.arrayBuffer(), { type: "array" });
+    const { read, utils } = await import("xlsx");
+    const workbook = read(await file.arrayBuffer(), { type: "array" });
 
-      if (!workbook.SheetNames.length) return [];
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      if (!firstSheet) return [];
+    if (!workbook.SheetNames.length) return [];
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    if (!firstSheet) return [];
 
-      const csvText = utils.sheet_to_csv(firstSheet, { blankrows: false });
-      return parseBooksCsv(csvText);
+    const rows = utils.sheet_to_json(firstSheet, { header: 1, blankrows: false }) as any[][];
+    if (rows.length < 3) {
+      throw new Error("File must contain at least human-readable headers (row 2) and data (row 3 onwards).");
     }
 
-    throw new Error("Unsupported file type. Please upload .csv, .xlsx, or .xls file.");
+    // Row index 0: KOHA field codes (skip)
+    // Row index 1: human-readable headers
+    const rawHeaders = (rows[1] || []).map(h => String(h || "").trim());
+
+    // Map column names to index
+    const colMap: Record<string, number> = {};
+    rawHeaders.forEach((header, idx) => {
+      if (header) {
+        colMap[header] = idx;
+      }
+    });
+
+    const books: Partial<Book>[] = [];
+
+    // Data starts from row index 2
+    for (let i = 2; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+
+      const getVal = (colName: string): string => {
+        const idx = colMap[colName];
+        if (idx === undefined || idx >= row.length) return "";
+        const val = row[idx];
+        return val !== undefined && val !== null ? String(val).trim() : "";
+      };
+
+      const title = getVal("Title");
+      // Skip rows where Title is empty
+      if (!title) continue;
+
+      // Extract and parse no_of_copies
+      const rawCopies = getVal("no_of_copies");
+      let noOfCopies = parseInt(rawCopies, 10);
+      if (isNaN(noOfCopies) || noOfCopies < 1) {
+        noOfCopies = 1;
+      }
+
+      // Extract and parse year_of_publication
+      const rawYear = getVal("Year of Pub");
+      let yearOfPub = parseInt(rawYear, 10);
+      if (isNaN(yearOfPub)) {
+        yearOfPub = 2024;
+      }
+
+      // Extract and parse price
+      const rawPrice = getVal("Price");
+      let priceValue = parseFloat(rawPrice);
+      if (isNaN(priceValue)) {
+        priceValue = 0;
+      }
+
+      // Date parsing helper
+      const rawDate = getVal("Date of Purchase");
+      let dateOfPurchase = null;
+      if (rawDate) {
+        const serialNum = Number(rawDate);
+        if (!isNaN(serialNum) && serialNum > 10000 && serialNum < 100000) {
+          // Excel serial date conversion
+          const utcDays = Math.floor(serialNum - 25569);
+          const parsed = new Date(utcDays * 86400 * 1000);
+          dateOfPurchase = parsed.toISOString().split("T")[0];
+        } else {
+          const parsed = new Date(rawDate);
+          if (!isNaN(parsed.getTime())) {
+            dateOfPurchase = parsed.toISOString().split("T")[0];
+          }
+        }
+      }
+
+      const book: Partial<Book> = {
+        title,
+        sub_title: getVal("Sub-Title"),
+        author: getVal("Author") || "Unknown Author",
+        author2: getVal("Author 2"),
+        isbn: getVal("ISBN No"),
+        category: getVal("Subject"), // Map Subject -> category
+        subject: getVal("Subject"),   // Map Subject -> subject
+        available: noOfCopies,        // available = no_of_copies
+        total: noOfCopies,            // total = no_of_copies
+        class_number: getVal("class no"),
+        book_number: getVal("Book No"),
+        edition: getVal("edition"),
+        place_of_publication: getVal("Place of Pub."),
+        name_of_publication: getVal("Name of Publication"),
+        year_of_publication: yearOfPub,
+        phy_desc: getVal("Phy. Desc"),
+        volume: getVal("Volume"),
+        general_note: getVal("General Note"),
+        permanent_location: getVal("Permanent Location"),
+        current_library: getVal("current Library"),
+        location: getVal("Location"),
+        date_of_purchase: dateOfPurchase,
+        vendor: getVal("Vendor"),
+        bill_number: getVal("Bill No."),
+        price: priceValue,
+        call_no: getVal("Call No"),
+        accession_no: getVal("Accession No"),
+        item_type: getVal("Item Type") || "Book",
+        no_of_copies: noOfCopies,
+      };
+
+      books.push(book);
+    }
+
+    return books;
   };
 
   const downloadTemplate = () => {

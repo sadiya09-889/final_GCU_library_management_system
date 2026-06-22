@@ -29,25 +29,40 @@ function useGuardState(): GuardState {
     let isMounted = true;
 
     async function loadGuardState() {
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("AuthGuard session load error:", error);
+          await supabase.auth.signOut();
+          if (isMounted) {
+            setState({ loading: false, isAuthenticated: false, role: null });
+          }
+          return;
+        }
 
-      if (!session?.user) {
+        const session = data.session;
+        if (!session?.user) {
+          if (isMounted) {
+            setState({ loading: false, isAuthenticated: false, role: null });
+          }
+          return;
+        }
+
+        const resolved = await resolveCurrentUserContext(session.user);
+        const fallbackRole = isAppRole(resolved?.role) ? resolved.role : "student";
+
+        if (isMounted) {
+          setState({
+            loading: false,
+            isAuthenticated: true,
+            role: fallbackRole,
+          });
+        }
+      } catch (err) {
+        console.error("Exception in AuthGuard state loader:", err);
         if (isMounted) {
           setState({ loading: false, isAuthenticated: false, role: null });
         }
-        return;
-      }
-
-      const resolved = await resolveCurrentUserContext(session.user);
-      const fallbackRole = isAppRole(resolved?.role) ? resolved.role : "student";
-
-      if (isMounted) {
-        setState({
-          loading: false,
-          isAuthenticated: true,
-          role: fallbackRole,
-        });
       }
     }
 

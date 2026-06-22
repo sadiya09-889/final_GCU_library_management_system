@@ -23,9 +23,41 @@ create index if not exists books_opac_isbn_idx
   on public.books (lower(btrim(isbn)))
   where nullif(btrim(isbn), '') is not null;
 
+create or replace function public.immutable_concat(
+  p_title text,
+  p_sub_title text,
+  p_author text,
+  p_author2 text,
+  p_isbn text,
+  p_category text,
+  p_subject text,
+  p_book_number text,
+  p_accession_no text,
+  p_call_no text,
+  p_class_number text,
+  p_year int
+)
+returns text
+language sql immutable as $$
+  select lower(concat_ws(' ',
+    coalesce(p_title, ''),
+    coalesce(p_sub_title, ''),
+    coalesce(p_author, ''),
+    coalesce(p_author2, ''),
+    coalesce(p_isbn, ''),
+    coalesce(p_category, ''),
+    coalesce(p_subject, ''),
+    coalesce(p_book_number, ''),
+    coalesce(p_accession_no, ''),
+    coalesce(p_call_no, ''),
+    coalesce(p_class_number, ''),
+    coalesce(p_year::text, '')
+  ));
+$$;
+
 create index if not exists books_opac_search_trgm_idx
-  on public.books using gin ((
-    lower(concat_ws(' ',
+  on public.books using gin (
+    public.immutable_concat(
       title,
       sub_title,
       author,
@@ -37,9 +69,10 @@ create index if not exists books_opac_search_trgm_idx
       accession_no,
       call_no,
       class_number,
-      year_of_publication::text
-    ))
-  ) gin_trgm_ops);
+      year_of_publication
+    ) gin_trgm_ops
+  );
+
 
 create or replace function public.search_opac_books(
   p_search_text text default '',
@@ -89,7 +122,7 @@ as $$
   with normalized_books as (
     select
       b.*,
-      lower(concat_ws(' ',
+      public.immutable_concat(
         b.title,
         b.sub_title,
         b.author,
@@ -101,8 +134,8 @@ as $$
         b.accession_no,
         b.call_no,
         b.class_number,
-        b.year_of_publication::text
-      )) as opac_search_text,
+        b.year_of_publication
+      ) as opac_search_text,
       coalesce(
         nullif(regexp_replace(lower(btrim(b.isbn)), '[[:space:]]+', '', 'g'), ''),
         md5(regexp_replace(lower(concat_ws('|',

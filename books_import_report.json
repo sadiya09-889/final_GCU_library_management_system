@@ -1,0 +1,2921 @@
+{
+  "validationErrors": [
+    {
+      "row": 25,
+      "book_number": "22739",
+      "error": "Missing Author"
+    },
+    {
+      "row": 51,
+      "book_number": "26930",
+      "error": "Missing Author"
+    },
+    {
+      "row": 52,
+      "book_number": "26928",
+      "error": "Missing Author"
+    },
+    {
+      "row": 53,
+      "book_number": "26929",
+      "error": "Missing Author"
+    },
+    {
+      "row": 63,
+      "book_number": "24848",
+      "error": "Missing Author"
+    },
+    {
+      "row": 70,
+      "book_number": "8230",
+      "error": "Missing Author"
+    },
+    {
+      "row": 72,
+      "book_number": "15026",
+      "error": "Missing Author"
+    },
+    {
+      "row": 87,
+      "book_number": "15639",
+      "error": "Missing Author"
+    },
+    {
+      "row": 98,
+      "book_number": "2707",
+      "error": "Missing Author"
+    },
+    {
+      "row": 109,
+      "book_number": "15701",
+      "error": "Missing Author"
+    },
+    {
+      "row": 113,
+      "book_number": "26936",
+      "error": "Missing Author"
+    },
+    {
+      "row": 123,
+      "book_number": "6226",
+      "error": "Missing Author"
+    },
+    {
+      "row": 143,
+      "book_number": "11603",
+      "error": "Missing Author"
+    },
+    {
+      "row": 147,
+      "book_number": "24035",
+      "error": "Missing Author"
+    },
+    {
+      "row": 164,
+      "book_number": "22241",
+      "error": "Missing Author"
+    },
+    {
+      "row": 316,
+      "book_number": "11646",
+      "error": "Missing Author"
+    },
+    {
+      "row": 327,
+      "book_number": "11571",
+      "error": "Missing Author"
+    },
+    {
+      "row": 571,
+      "book_number": "22246",
+      "error": "Missing Author"
+    },
+    {
+      "row": 650,
+      "book_number": "22240",
+      "error": "Missing Author"
+    },
+    {
+      "row": 673,
+      "book_number": "34188",
+      "error": "Missing Author"
+    },
+    {
+      "row": 688,
+      "book_number": "9725",
+      "error": "Missing Author"
+    },
+    {
+      "row": 719,
+      "book_number": "36682",
+      "error": "Missing Author"
+    },
+    {
+      "row": 723,
+      "book_number": "36903",
+      "error": "Missing Author"
+    },
+    {
+      "row": 749,
+      "book_number": "30036",
+      "error": "Missing Author"
+    },
+    {
+      "row": 854,
+      "book_number": "8837",
+      "error": "Missing Author"
+    },
+    {
+      "row": 892,
+      "book_number": "33773",
+      "error": "Missing Author"
+    },
+    {
+      "row": 894,
+      "book_number": "36381",
+      "error": "Missing Author"
+    },
+    {
+      "row": 898,
+      "book_number": "36380",
+      "error": "Missing Author"
+    },
+    {
+      "row": 998,
+      "book_number": "25264",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1002,
+      "book_number": "3979",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1004,
+      "book_number": "3982",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1005,
+      "book_number": "3966",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1006,
+      "book_number": "3961",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1007,
+      "book_number": "15600",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1008,
+      "book_number": "18915",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1012,
+      "book_number": "24860",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1025,
+      "book_number": "26404",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1033,
+      "book_number": "36606",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1034,
+      "book_number": "36610",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1035,
+      "book_number": "36612",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1036,
+      "book_number": "36608",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1046,
+      "book_number": "36912",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1123,
+      "book_number": "33293",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1321,
+      "book_number": "2714",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1339,
+      "book_number": "5799",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1372,
+      "book_number": "8107",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1375,
+      "book_number": "26198",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1376,
+      "book_number": "26197",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1377,
+      "book_number": "26196",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1378,
+      "book_number": "26202",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1379,
+      "book_number": "26200",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1380,
+      "book_number": "26201",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1381,
+      "book_number": "26199",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1393,
+      "book_number": "36604",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1423,
+      "book_number": "36565",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1448,
+      "book_number": "14414",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1454,
+      "book_number": "36769",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1457,
+      "book_number": "36964",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1499,
+      "book_number": "36452",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1513,
+      "book_number": "24665",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1514,
+      "book_number": "24664",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1530,
+      "book_number": "26395",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1531,
+      "book_number": "26204",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1541,
+      "book_number": "29320",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1571,
+      "book_number": "24657",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1572,
+      "book_number": "24662",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1574,
+      "book_number": "24660",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1579,
+      "book_number": "23974",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1594,
+      "book_number": "36359",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1595,
+      "book_number": "36351",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1596,
+      "book_number": "36759",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1606,
+      "book_number": "2671",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1607,
+      "book_number": "2670",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1608,
+      "book_number": "2752",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1610,
+      "book_number": "2748",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1717,
+      "book_number": "34508",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1790,
+      "book_number": "14065",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1830,
+      "book_number": "13399",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1842,
+      "book_number": "8126",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1847,
+      "book_number": "2697",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1861,
+      "book_number": "36232",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1864,
+      "book_number": "36206",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1871,
+      "book_number": "26947",
+      "error": "Missing Author"
+    },
+    {
+      "row": 1996,
+      "book_number": "26104",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2023,
+      "book_number": "36564",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2046,
+      "book_number": "36789",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2068,
+      "book_number": "33765",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2148,
+      "book_number": "36884",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2153,
+      "book_number": "22763",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2154,
+      "book_number": "26804",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2168,
+      "book_number": "36562",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2177,
+      "book_number": "36773",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2223,
+      "book_number": "36648",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2262,
+      "book_number": "36117",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2543,
+      "book_number": "11884",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2645,
+      "book_number": "36498",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2657,
+      "book_number": "3950",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2701,
+      "book_number": "36673",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2725,
+      "book_number": "36551",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2733,
+      "book_number": "26937",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2750,
+      "book_number": "36718",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2767,
+      "book_number": "36661",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2770,
+      "book_number": "24863",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2860,
+      "book_number": "26533",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2907,
+      "book_number": "22247",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2910,
+      "book_number": "5091",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2966,
+      "book_number": "26359",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2972,
+      "book_number": "26007",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2977,
+      "book_number": "8141",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2978,
+      "book_number": "8143",
+      "error": "Missing Author"
+    },
+    {
+      "row": 2988,
+      "book_number": "22497",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3007,
+      "book_number": "36743",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3020,
+      "book_number": "36879",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3026,
+      "book_number": "36756",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3034,
+      "book_number": "36830",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3035,
+      "book_number": "36677",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3161,
+      "book_number": "34118",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3162,
+      "book_number": "12478",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3178,
+      "book_number": "24677",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3179,
+      "book_number": "24678",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3285,
+      "book_number": "16868",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3320,
+      "book_number": "36896",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3323,
+      "book_number": "36684",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3338,
+      "book_number": "36558",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3363,
+      "book_number": "36965",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3364,
+      "book_number": "27346",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3576,
+      "book_number": "27923",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3670,
+      "book_number": "3938",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3671,
+      "book_number": "24869",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3691,
+      "book_number": "24865",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3693,
+      "book_number": "3954",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3871,
+      "book_number": "36797",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3887,
+      "book_number": "12170",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3894,
+      "book_number": "13406",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3898,
+      "book_number": "12458",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3903,
+      "book_number": "36187",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3929,
+      "book_number": "12169",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3986,
+      "book_number": "36970",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3987,
+      "book_number": "36880",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3990,
+      "book_number": "11540",
+      "error": "Missing Author"
+    },
+    {
+      "row": 3991,
+      "book_number": "11475",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4011,
+      "book_number": "8080",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4012,
+      "book_number": "12467",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4056,
+      "book_number": "25980",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4187,
+      "book_number": "12123",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4217,
+      "book_number": "36186",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4232,
+      "book_number": "29308",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4255,
+      "book_number": "30035",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4265,
+      "book_number": "31905",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4327,
+      "book_number": "36588",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4347,
+      "book_number": "5993",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4350,
+      "book_number": "5992",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4472,
+      "book_number": "13720",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4512,
+      "book_number": "36945",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4544,
+      "book_number": "26362",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4556,
+      "book_number": "34573",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4561,
+      "book_number": "36811",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4594,
+      "book_number": "36969",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4595,
+      "book_number": "18954",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4706,
+      "book_number": "26927",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4752,
+      "book_number": "11521",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4755,
+      "book_number": "11660",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4764,
+      "book_number": "11468",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4770,
+      "book_number": "11576",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4775,
+      "book_number": "36270",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4786,
+      "book_number": "16691",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4801,
+      "book_number": "22769",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4838,
+      "book_number": "36296",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4899,
+      "book_number": "11469",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4945,
+      "book_number": "8024",
+      "error": "Missing Author"
+    },
+    {
+      "row": 4979,
+      "book_number": "36449",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5098,
+      "book_number": "36893",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5121,
+      "book_number": "26408",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5147,
+      "book_number": "36198",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5148,
+      "book_number": "17856",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5216,
+      "book_number": "24903",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5222,
+      "book_number": "34053",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5226,
+      "book_number": "36288",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5309,
+      "book_number": "36886",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5337,
+      "book_number": "36618",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5443,
+      "book_number": "36784",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5478,
+      "book_number": "36968",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5489,
+      "book_number": "22726",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5495,
+      "book_number": "30688",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5507,
+      "book_number": "22248",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5514,
+      "book_number": "30038",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5575,
+      "book_number": "8200",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5582,
+      "book_number": "9759",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5605,
+      "book_number": "22235",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5624,
+      "book_number": "14068",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5646,
+      "book_number": "36283",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5668,
+      "book_number": "8212",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5677,
+      "book_number": "36282",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5683,
+      "book_number": "9093",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5686,
+      "book_number": "24858",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5715,
+      "book_number": "14075",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5720,
+      "book_number": "36513",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5730,
+      "book_number": "25982",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5731,
+      "book_number": "25983",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5732,
+      "book_number": "25985",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5733,
+      "book_number": "25984",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5735,
+      "book_number": "25986",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5740,
+      "book_number": "32219",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5923,
+      "book_number": "34204",
+      "error": "Missing Author"
+    },
+    {
+      "row": 5967,
+      "book_number": "3969",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6001,
+      "book_number": "8213",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6003,
+      "book_number": "8215",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6005,
+      "book_number": "36218",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6064,
+      "book_number": "24895",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6066,
+      "book_number": "36311",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6076,
+      "book_number": "15577",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6119,
+      "book_number": "36291",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6125,
+      "book_number": "31860",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6145,
+      "book_number": "36285",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6181,
+      "book_number": "2903",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6182,
+      "book_number": "9738",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6235,
+      "book_number": "36754",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6518,
+      "book_number": "33243",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6522,
+      "book_number": "36200",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6538,
+      "book_number": "3819",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6656,
+      "book_number": "36655",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6664,
+      "book_number": "24862",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6695,
+      "book_number": "23173",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6706,
+      "book_number": "36269",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6736,
+      "book_number": "18356",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6755,
+      "book_number": "4055",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6766,
+      "book_number": "36235",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6767,
+      "book_number": "11638",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6811,
+      "book_number": "3572",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6828,
+      "book_number": "36290",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6829,
+      "book_number": "36207",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6847,
+      "book_number": "13176",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6865,
+      "book_number": "36772",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6889,
+      "book_number": "36913",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6893,
+      "book_number": "23925",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6894,
+      "book_number": "23918",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6906,
+      "book_number": "14930",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6921,
+      "book_number": "5106",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6927,
+      "book_number": "3963",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6945,
+      "book_number": "25488",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6961,
+      "book_number": "2898",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6970,
+      "book_number": "33099",
+      "error": "Missing Author"
+    },
+    {
+      "row": 6986,
+      "book_number": "36114",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7011,
+      "book_number": "36831",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7029,
+      "book_number": "22243",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7047,
+      "book_number": "36819",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7061,
+      "book_number": "33122",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7063,
+      "book_number": "8929",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7064,
+      "book_number": "9015",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7087,
+      "book_number": "32107",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7152,
+      "book_number": "4826",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7153,
+      "book_number": "4827",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7154,
+      "book_number": "4825",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7168,
+      "book_number": "22471",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7197,
+      "book_number": "12454",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7202,
+      "book_number": "27133",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7269,
+      "book_number": "27795",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7320,
+      "book_number": "12171",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7376,
+      "book_number": "23965",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7530,
+      "book_number": "36401",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7587,
+      "book_number": "22493",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7592,
+      "book_number": "26331",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7621,
+      "book_number": "24864",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7732,
+      "book_number": "13110",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7738,
+      "book_number": "16744",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7741,
+      "book_number": "26926",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7752,
+      "book_number": "36514",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7808,
+      "book_number": "25988",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7978,
+      "book_number": "36940",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7979,
+      "book_number": "36960",
+      "error": "Missing Author"
+    },
+    {
+      "row": 7982,
+      "book_number": "36113",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8008,
+      "book_number": "36676",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8016,
+      "book_number": "36194",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8040,
+      "book_number": "2694",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8129,
+      "book_number": "36866",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8179,
+      "book_number": "36954",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8252,
+      "book_number": "11635",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8254,
+      "book_number": "25987",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8296,
+      "book_number": "36321",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8323,
+      "book_number": "36586",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8333,
+      "book_number": "36895",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8402,
+      "book_number": "32866",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8566,
+      "book_number": "15221",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8577,
+      "book_number": "22244",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8650,
+      "book_number": "5994",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8731,
+      "book_number": "11511",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8740,
+      "book_number": "36243",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8755,
+      "book_number": "12604",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8767,
+      "book_number": "13445",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8781,
+      "book_number": "13507",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8785,
+      "book_number": "29127",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8819,
+      "book_number": "2693",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8827,
+      "book_number": "15598",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8828,
+      "book_number": "3075",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8829,
+      "book_number": "28408",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8892,
+      "book_number": "8268",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8895,
+      "book_number": "8269",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8918,
+      "book_number": "8106",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8920,
+      "book_number": "34129",
+      "error": "Missing Author"
+    },
+    {
+      "row": 8921,
+      "book_number": "34128",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9004,
+      "book_number": "8575",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9005,
+      "book_number": "8576",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9006,
+      "book_number": "8580",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9007,
+      "book_number": "8577",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9008,
+      "book_number": "8579",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9009,
+      "book_number": "8505",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9010,
+      "book_number": "8506",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9011,
+      "book_number": "8510",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9012,
+      "book_number": "8507",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9013,
+      "book_number": "8509",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9023,
+      "book_number": "3753",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9032,
+      "book_number": "25105",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9033,
+      "book_number": "25102",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9034,
+      "book_number": "25109",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9035,
+      "book_number": "25104",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9090,
+      "book_number": "27883",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9100,
+      "book_number": "8276",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9101,
+      "book_number": "34891",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9130,
+      "book_number": "13746",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9200,
+      "book_number": "11550",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9245,
+      "book_number": "11647",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9305,
+      "book_number": "36720",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9311,
+      "book_number": "24874",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9317,
+      "book_number": "21026",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9321,
+      "book_number": "3857",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9323,
+      "book_number": "23946",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9324,
+      "book_number": "23957",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9325,
+      "book_number": "23945",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9326,
+      "book_number": "22764",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9327,
+      "book_number": "23949",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9328,
+      "book_number": "23951",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9329,
+      "book_number": "23955",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9330,
+      "book_number": "23950",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9331,
+      "book_number": "23958",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9332,
+      "book_number": "23952",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9333,
+      "book_number": "23953",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9334,
+      "book_number": "23954",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9335,
+      "book_number": "23956",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9341,
+      "book_number": "7743",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9342,
+      "book_number": "32770",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9344,
+      "book_number": "7744",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9345,
+      "book_number": "32782",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9349,
+      "book_number": "9851",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9375,
+      "book_number": "13392",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9384,
+      "book_number": "36972",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9434,
+      "book_number": "36837",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9471,
+      "book_number": "13756",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9516,
+      "book_number": "11754",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9795,
+      "book_number": "36370",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9816,
+      "book_number": "36842",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9844,
+      "book_number": "8300",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9846,
+      "book_number": "29370",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9869,
+      "book_number": "15851",
+      "error": "Missing Author"
+    },
+    {
+      "row": 9912,
+      "book_number": "22242",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10039,
+      "book_number": "23944",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10040,
+      "book_number": "23941",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10099,
+      "book_number": "12511",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10139,
+      "book_number": "22146",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10263,
+      "book_number": "34685",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10290,
+      "book_number": "36944",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10294,
+      "book_number": "4905",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10297,
+      "book_number": "36407",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10300,
+      "book_number": "8301",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10308,
+      "book_number": "7187",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10335,
+      "book_number": "36595",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10530,
+      "book_number": "11642",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10651,
+      "book_number": "36793",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10652,
+      "book_number": "33229",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10733,
+      "book_number": "2878",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10735,
+      "book_number": "2893",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10736,
+      "book_number": "2892",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10745,
+      "book_number": "24876",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10749,
+      "book_number": "36768",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10755,
+      "book_number": "25981",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10770,
+      "book_number": "11643",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10901,
+      "book_number": "8307",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10905,
+      "book_number": "36566",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10972,
+      "book_number": "36556",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10974,
+      "book_number": "36583",
+      "error": "Missing Author"
+    },
+    {
+      "row": 10987,
+      "book_number": "36848",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11052,
+      "book_number": "31903",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11081,
+      "book_number": "4180",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11212,
+      "book_number": "36922",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11217,
+      "book_number": "36910",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11218,
+      "book_number": "36598",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11222,
+      "book_number": "36957",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11223,
+      "book_number": "36937",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11259,
+      "book_number": "9845",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11274,
+      "book_number": "8159",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11277,
+      "book_number": "26094",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11317,
+      "book_number": "30039",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11320,
+      "book_number": "26491",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11391,
+      "book_number": "36329",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11446,
+      "book_number": "33156",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11609,
+      "book_number": "11520",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11653,
+      "book_number": "15736",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11663,
+      "book_number": "22083",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11672,
+      "book_number": "36626",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11701,
+      "book_number": "31902",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11703,
+      "book_number": "26954",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11705,
+      "book_number": "8318",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11742,
+      "book_number": "13717",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11744,
+      "book_number": "24852",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11807,
+      "book_number": "36774",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11904,
+      "book_number": "11508",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11915,
+      "book_number": "36740",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11931,
+      "book_number": "2902",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11951,
+      "book_number": "36939",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11959,
+      "book_number": "4919",
+      "error": "Missing Author"
+    },
+    {
+      "row": 11977,
+      "book_number": "36693",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12003,
+      "book_number": "36625",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12082,
+      "book_number": "8325",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12095,
+      "book_number": "33212",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12097,
+      "book_number": "13991",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12138,
+      "book_number": "36385",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12189,
+      "book_number": "36807",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12214,
+      "book_number": "36715",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12260,
+      "book_number": "8328",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12268,
+      "book_number": "8037",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12294,
+      "book_number": "36409",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12359,
+      "book_number": "36646",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12433,
+      "book_number": "36645",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12538,
+      "book_number": "7662",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12604,
+      "book_number": "27132",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12744,
+      "book_number": "33034",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12794,
+      "book_number": "26941",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12795,
+      "book_number": "26942",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12796,
+      "book_number": "26939",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12797,
+      "book_number": "26940",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12878,
+      "book_number": "36100",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12912,
+      "book_number": "31744",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12925,
+      "book_number": "5960",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12926,
+      "book_number": "5959",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12973,
+      "book_number": "2910",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12974,
+      "book_number": "2909",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12975,
+      "book_number": "2913",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12976,
+      "book_number": "2915",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12981,
+      "book_number": "2912",
+      "error": "Missing Author"
+    },
+    {
+      "row": 12985,
+      "book_number": "24875",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13022,
+      "book_number": "36555",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13036,
+      "book_number": "14150",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13039,
+      "book_number": "26955",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13053,
+      "book_number": "33145",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13054,
+      "book_number": "33187",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13058,
+      "book_number": "33157",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13060,
+      "book_number": "36894",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13085,
+      "book_number": "36798",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13100,
+      "book_number": "36302",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13112,
+      "book_number": "36563",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13130,
+      "book_number": "36638",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13212,
+      "book_number": "14081",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13257,
+      "book_number": "11547",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13298,
+      "book_number": "36951",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13304,
+      "book_number": "34079",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13307,
+      "book_number": "36188",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13312,
+      "book_number": "16648",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13345,
+      "book_number": "32857",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13399,
+      "book_number": "11582",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13500,
+      "book_number": "11600",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13511,
+      "book_number": "8053",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13536,
+      "book_number": "2901",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13580,
+      "book_number": "30037",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13599,
+      "book_number": "9633",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13623,
+      "book_number": "36561",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13718,
+      "book_number": "11544",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13753,
+      "book_number": "31904",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13786,
+      "book_number": "13480",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13815,
+      "book_number": "13438",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13871,
+      "book_number": "13585",
+      "error": "Missing Author"
+    },
+    {
+      "row": 13886,
+      "book_number": "36103",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14043,
+      "book_number": "25979",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14107,
+      "book_number": "36898",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14112,
+      "book_number": "29148",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14139,
+      "book_number": "36952",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14204,
+      "book_number": "2907",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14205,
+      "book_number": "2904",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14211,
+      "book_number": "32125",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14213,
+      "book_number": "24859",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14318,
+      "book_number": "22239",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14422,
+      "book_number": "27836",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14439,
+      "book_number": "26733",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14464,
+      "book_number": "36708",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14536,
+      "book_number": "22405",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14574,
+      "book_number": "28409",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14576,
+      "book_number": "18955",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14594,
+      "book_number": "15311",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14629,
+      "book_number": "11575",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14633,
+      "book_number": "2957",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14693,
+      "book_number": "36859",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14778,
+      "book_number": "12353",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14848,
+      "book_number": "36373",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14891,
+      "book_number": "36616",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14908,
+      "book_number": "36596",
+      "error": "Missing Author"
+    },
+    {
+      "row": 14933,
+      "book_number": "25332",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15063,
+      "book_number": "8125",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15077,
+      "book_number": "28253",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15080,
+      "book_number": "16870",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15103,
+      "book_number": "24795",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15120,
+      "book_number": "12145",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15155,
+      "book_number": "12517",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15177,
+      "book_number": "21208",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15226,
+      "book_number": "26142",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15236,
+      "book_number": "8637",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15271,
+      "book_number": "12463",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15278,
+      "book_number": "8350",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15280,
+      "book_number": "8152",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15281,
+      "book_number": "8154",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15387,
+      "book_number": "32127",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15408,
+      "book_number": "9632",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15418,
+      "book_number": "13478",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15464,
+      "book_number": "16653",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15497,
+      "book_number": "36967",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15503,
+      "book_number": "3150",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15549,
+      "book_number": "3784",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15556,
+      "book_number": "25078",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15587,
+      "book_number": "12431",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15589,
+      "book_number": "3744",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15625,
+      "book_number": "3967",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15636,
+      "book_number": "2838",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15640,
+      "book_number": "24861",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15670,
+      "book_number": "26938",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15704,
+      "book_number": "33938",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15724,
+      "book_number": "2800",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15754,
+      "book_number": "14413",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15762,
+      "book_number": "12143",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15774,
+      "book_number": "26935",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15782,
+      "book_number": "4841",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15785,
+      "book_number": "27853",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15822,
+      "book_number": "12133",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15875,
+      "book_number": "11452",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15899,
+      "book_number": "11644",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15925,
+      "book_number": "13584",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15991,
+      "book_number": "33176",
+      "error": "Missing Author"
+    },
+    {
+      "row": 15992,
+      "book_number": "11407",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16003,
+      "book_number": "12531",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16004,
+      "book_number": "12466",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16068,
+      "book_number": "27924",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16092,
+      "book_number": "14978",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16123,
+      "book_number": "12468",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16132,
+      "book_number": "28806",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16137,
+      "book_number": "3745",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16152,
+      "book_number": "12134",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16156,
+      "book_number": "13471",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16165,
+      "book_number": "12530",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16278,
+      "book_number": "12352",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16288,
+      "book_number": "36492",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16290,
+      "book_number": "36627",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16315,
+      "book_number": "36963",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16354,
+      "book_number": "22514",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16437,
+      "book_number": "12465",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16483,
+      "book_number": "36908",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16509,
+      "book_number": "8354",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16521,
+      "book_number": "36589",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16625,
+      "book_number": "2905",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16694,
+      "book_number": "36147",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16772,
+      "book_number": "22807",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16776,
+      "book_number": "3978",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16810,
+      "book_number": "14412",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16850,
+      "book_number": "36620",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16851,
+      "book_number": "12471",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16876,
+      "book_number": "3637",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16884,
+      "book_number": "36222",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16934,
+      "book_number": "22236",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16938,
+      "book_number": "26103",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16947,
+      "book_number": "3196",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16958,
+      "book_number": "14732",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16972,
+      "book_number": "22237",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16983,
+      "book_number": "36926",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16988,
+      "book_number": "22238",
+      "error": "Missing Author"
+    },
+    {
+      "row": 16989,
+      "book_number": "22245",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17041,
+      "book_number": "32892",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17044,
+      "book_number": "30032",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17045,
+      "book_number": "30033",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17046,
+      "book_number": "30034",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17099,
+      "book_number": "24856",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17100,
+      "book_number": "36901",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17101,
+      "book_number": "8232",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17117,
+      "book_number": "12619",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17154,
+      "book_number": "13444",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17167,
+      "book_number": "36966",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17181,
+      "book_number": "21998",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17195,
+      "book_number": "25815",
+      "error": "Missing Author"
+    },
+    {
+      "row": 17199,
+      "book_number": "12589",
+      "error": "Missing Author"
+    }
+  ],
+  "duplicatesSkipped": [],
+  "insertErrors": []
+}

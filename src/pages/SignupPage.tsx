@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { BookOpen, Eye, EyeOff, GraduationCap } from "lucide-react";
+import { BookOpen, Eye, EyeOff, GraduationCap, ChevronLeft, Briefcase } from "lucide-react";
 import campusImage from "@/assets/campus.jpeg";
 import { supabase } from "@/lib/supabase";
-import { isFacultyEmail } from "@/lib/accountRole";
 
 export default function SignupPage() {
   const [accountType, setAccountType] = useState<"student" | "faculty">("student");
+  const [stage, setStage] = useState<"role-selection" | "form">("role-selection");
   const [name, setName] = useState("");
   const [regNo, setRegNo] = useState("");
   const [email, setEmail] = useState("");
@@ -15,12 +15,14 @@ export default function SignupPage() {
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setNotice("");
 
     const trimmedName = name.trim();
     const trimmedRegNo = regNo.trim();
@@ -43,11 +45,6 @@ export default function SignupPage() {
       }
     }
 
-    if (accountType === "faculty" && !isFacultyEmail(normalizedEmail)) {
-      setError("Faculty accounts must use a valid @gcu.edu.in email address.");
-      return;
-    }
-
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -58,29 +55,44 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-    const { error: authError } = await supabase.auth.signUp({
+    const emailRedirectTo = accountType === "faculty"
+      ? `${window.location.origin}/auth/callback`
+      : `${window.location.origin}/verify-otp?email=${encodeURIComponent(normalizedEmail)}`;
+    const { data: signupData, error: authError } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
+        emailRedirectTo,
         data: {
           name: trimmedName,
           role: accountType,
           reg_no: accountType === "student" ? trimmedRegNo : "",
+          school: "",
+          department: "",
+          contact_number: "",
         },
       },
     });
     setLoading(false);
 
     if (authError) {
-      if (authError.message.toLowerCase().includes("already registered")) {
-        setError("This email is already registered. Please log in.");
+      const message = authError.message.toLowerCase();
+
+      if (message.includes("already registered")) {
+        setError("This email is already registered. Please go to the Sign In page to log in.");
+      } else if (message.includes("database error saving new user")) {
+        setError("Account creation failed while saving the profile. Please try again in a moment.");
       } else {
         setError(authError.message);
       }
       return;
     }
 
-    // Redirect to OTP verification
+    if (signupData.session) {
+      navigate("/dashboard", { replace: true });
+      return;
+    }
+
     navigate(`/verify-otp?email=${encodeURIComponent(normalizedEmail)}`);
   };
 
@@ -101,7 +113,7 @@ export default function SignupPage() {
         </div>
       </div>
 
-      {/* Right – Form */}
+      {/* Right – Form or Role Selection */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12 bg-background">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 mb-8">
@@ -109,144 +121,212 @@ export default function SignupPage() {
             <span className="font-semibold text-xl text-primary">Garden City University</span>
           </div>
 
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg gradient-warm flex items-center justify-center">
-              <BookOpen className="h-5 w-5 text-secondary-foreground" />
-            </div>
+          {stage === "role-selection" ? (
             <div>
-              <h1 className="text-2xl font-semibold text-foreground">Create Account</h1>
-              <p className="text-muted-foreground text-sm">Create a student or faculty account and verify it by email</p>
-            </div>
-          </div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-lg gradient-warm flex items-center justify-center">
+                  <BookOpen className="h-5 w-5 text-secondary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold text-foreground">Join GCU Library</h1>
+                  <p className="text-muted-foreground text-sm">Select your account type to get started</p>
+                </div>
+              </div>
 
-          <form onSubmit={handleSignup} className="mt-8 space-y-5">
-            <div>
-              <p className="block text-sm font-medium text-foreground mb-2">Account Type</p>
-              <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
+              <div className="space-y-4 mt-8">
                 <button
                   type="button"
-                  onClick={() => setAccountType("student")}
-                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${accountType === "student" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  onClick={() => {
+                    setAccountType("student");
+                    setStage("form");
+                    setError("");
+                  }}
+                  className="w-full p-5 text-left border-2 border-border hover:border-secondary rounded-xl bg-card transition-all flex items-center gap-4 group"
                 >
-                  Student
+                  <div className="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center group-hover:bg-secondary/20 transition-colors flex-shrink-0">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-base text-foreground group-hover:text-secondary transition-colors">GCU Student</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      Register with your GCU student ID/Register Number to access student library services.
+                    </p>
+                  </div>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setAccountType("faculty")}
-                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${accountType === "faculty" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  onClick={() => {
+                    setAccountType("faculty");
+                    setStage("form");
+                    setError("");
+                  }}
+                  className="w-full p-5 text-left border-2 border-border hover:border-secondary rounded-xl bg-card transition-all flex items-center gap-4 group"
                 >
-                  Faculty
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary/20 transition-colors flex-shrink-0">
+                    <Briefcase className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-base text-foreground group-hover:text-secondary transition-colors">GCU Faculty</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      Register as a GCU faculty member. Personal or GCU domains allowed. No Register Number needed.
+                    </p>
+                  </div>
                 </button>
               </div>
-            </div>
 
-            {/* Full Name */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-                placeholder="John Doe"
-                className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
-              />
-            </div>
-
-            {accountType === "student" && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Reg No</label>
-                <input
-                  type="text"
-                  value={regNo}
-                  onChange={e => setRegNo(e.target.value)}
-                  required
-                  maxLength={30}
-                  placeholder="e.g. 23BTRE101"
-                  className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
-                />
-              </div>
-            )}
-
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                placeholder={accountType === "faculty" ? "ravi2345@gcu.edu.in" : "student@gcu.edu.in"}
-                className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                {accountType === "faculty"
-                  ? "Faculty accounts are identified by GCU email."
-                  : "Student accounts are identified by Reg No and email."}
+              <p className="mt-8 text-center text-sm text-muted-foreground border-t border-border pt-6">
+                Already have an account?{" "}
+                <Link to="/login" className="font-medium text-primary hover:underline">
+                  Sign In
+                </Link>
               </p>
             </div>
-
-            {/* Password */}
+          ) : (
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition pr-12"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
+              {/* Back Button */}
+              <button
+                type="button"
+                onClick={() => setStage("role-selection")}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-6 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" /> Back to selection
+              </button>
+
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg gradient-warm flex items-center justify-center">
+                  {accountType === "student" ? (
+                    <GraduationCap className="h-5 w-5 text-secondary-foreground" />
+                  ) : (
+                    <Briefcase className="h-5 w-5 text-secondary-foreground" />
+                  )}
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold text-foreground">
+                    {accountType === "student" ? "Student Signup" : "Faculty Signup"}
+                  </h1>
+                  <p className="text-muted-foreground text-sm">
+                    {accountType === "student"
+                      ? "Create account using your student register number"
+                      : "Create account with your designation"}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Confirm Password</label>
-              <div className="relative">
-                <input
-                  type={showConfirm ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition pr-12"
-                />
+              <form onSubmit={handleSignup} className="mt-8 space-y-5">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Full Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                    placeholder="John Doe"
+                    className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
+                  />
+                </div>
+
+                {/* Reg No (Student Only) */}
+                {accountType === "student" && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Reg No</label>
+                    <input
+                      type="text"
+                      value={regNo}
+                      onChange={e => setRegNo(e.target.value)}
+                      required
+                      maxLength={30}
+                      placeholder="e.g. 23BTRE101"
+                      className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
+                    />
+                  </div>
+                )}
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                    placeholder={accountType === "faculty" ? "faculty@example.com" : "student@gcu.edu.in"}
+                    className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {accountType === "faculty"
+                      ? "Faculty accounts can use any active email address."
+                      : "Student accounts are identified by Reg No and email."}
+                  </p>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPass ? "text" : "password"}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Confirm Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirm ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(!showConfirm)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && <p className="text-destructive text-sm">{error}</p>}
+                {notice && <p className="text-sm text-green-600">{notice}</p>}
+
                 <button
-                  type="button"
-                  onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 rounded-lg font-semibold gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {showConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {loading
+                    ? "Creating Account..."
+                    : `Create ${accountType === "faculty" ? "Faculty" : "Student"} Account`}
                 </button>
-              </div>
+              </form>
+
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/login" className="font-medium text-primary hover:underline">
+                  Sign In
+                </Link>
+              </p>
             </div>
-
-            {error && <p className="text-destructive text-sm">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-lg font-semibold gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? "Sending OTP..." : `Create ${accountType === "faculty" ? "Faculty" : "Student"} Account`}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link to="/login" className="font-medium text-primary hover:underline">
-              Sign In
-            </Link>
-          </p>
+          )}
         </div>
       </div>
     </div>

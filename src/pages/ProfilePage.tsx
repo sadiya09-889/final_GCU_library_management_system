@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchProfile, updateProfile } from "@/lib/supabaseService";
 import { profileUpdateSchema, type UserProfile, type ProfileUpdateData } from "@/lib/types";
-import { isAppRole, isFacultyEmail } from "@/lib/accountRole";
+import { isAppRole, resolveCurrentUserContext } from "@/lib/accountRole";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "message" in error) {
@@ -28,9 +28,6 @@ function getProfileRole(value: unknown): UserProfile["role"] {
 }
 
 function getDisplayRole(profile: UserProfile): UserProfile["role"] {
-  if (profile.role === "student" && isFacultyEmail(profile.email || "")) {
-    return "faculty";
-  }
   return profile.role;
 }
 
@@ -96,16 +93,18 @@ export default function ProfilePage() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        const resolved = await resolveCurrentUserContext(user);
         const metadataName =
+          getMetadataValue(resolved?.name) ||
           getMetadataValue(user.user_metadata?.name) ||
           getMetadataValue(user.user_metadata?.full_name) ||
           getMetadataValue(user.email?.split("@")[0]) ||
           "User";
 
-        const metadataEmail = getMetadataValue(user.email);
-        const metadataRole = getProfileRole(user.user_metadata?.role);
+        const metadataEmail = getMetadataValue(resolved?.email) || getMetadataValue(user.email);
+        const metadataRole = resolved?.role || getProfileRole(user.user_metadata?.role);
         const metadataContact = getMetadataValue(user.user_metadata?.contact_number);
-        const metadataRegNo = getMetadataValue(user.user_metadata?.reg_no);
+        const metadataRegNo = getMetadataValue(resolved?.regNo) || getMetadataValue(user.user_metadata?.reg_no);
         const fallbackJoinDate = user.created_at
           ? new Date(user.created_at).toISOString().split("T")[0]
           : new Date().toISOString().split("T")[0];
@@ -116,7 +115,8 @@ export default function ProfilePage() {
             ...userProfile,
             name: getMetadataValue(userProfile.name) || metadataName,
             email: getMetadataValue(userProfile.email) || metadataEmail,
-            role: getProfileRole(userProfile.role || metadataRole),
+            role: resolved?.role || getProfileRole(userProfile.role || metadataRole),
+            department: userProfile.department || resolved?.department || "",
             contact_number: userProfile.contact_number || metadataContact,
             reg_no: userProfile.reg_no || metadataRegNo,
             join_date: userProfile.join_date || fallbackJoinDate,

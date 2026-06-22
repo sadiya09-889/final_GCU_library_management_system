@@ -23,19 +23,25 @@ begin
 		coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
 		new.email,
 		case
-			when coalesce(new.raw_user_meta_data->>'role', '') in ('admin', 'librarian', 'student', 'faculty')
-				then new.raw_user_meta_data->>'role'
-			when nullif(new.raw_user_meta_data->>'reg_no', '') is not null
-				then 'student'
-			when lower(coalesce(new.email, '')) like '%@gcu.edu.in'
-				then 'faculty'
+			when nullif(btrim(new.raw_user_meta_data->>'reg_no'), '') is not null then 'student'
+			when lower(coalesce(new.raw_user_meta_data->>'role', '')) = 'faculty' then 'faculty'
+			when lower(coalesce(new.email, '')) like '%@gcu.edu.in' then 'faculty'
 			else 'student'
 		end,
 		nullif(new.raw_user_meta_data->>'school', ''),
 		nullif(new.raw_user_meta_data->>'department', ''),
 		nullif(new.raw_user_meta_data->>'contact_number', ''),
 		nullif(new.raw_user_meta_data->>'reg_no', '')
-	);
+	)
+	on conflict (id) do update
+	set
+		name = excluded.name,
+		email = excluded.email,
+		role = excluded.role,
+		school = excluded.school,
+		department = excluded.department,
+		contact_number = excluded.contact_number,
+		reg_no = excluded.reg_no;
 	return new;
 end;
 $$ language plpgsql security definer;
