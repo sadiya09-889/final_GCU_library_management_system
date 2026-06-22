@@ -1758,6 +1758,12 @@ export async function returnBook(id: string, qualityCheck?: ReturnQualityCheck):
         }
     }
 
+    if (bookId && nextAvailable > 0) {
+        notifyReservationBookAvailable(bookId).catch((err) => {
+            console.error("Failed to trigger reservation availability notifications:", err);
+        });
+    }
+
     return returnedIssue as IssuedBook;
 }
 
@@ -1865,10 +1871,48 @@ function getMissingReservationsTableMessage(error: unknown) {
     return getErrorMessage(error, "Reservation request failed");
 }
 
-export async function fetchBookReservations(): Promise<BookReservation[]> {
+export async function fetchBookReservations(): Promise<(BookReservation & { book_available?: number; member_role?: string })[]> {
     const { data, error } = await supabase
         .from("book_reservations")
         .select("*")
+        .order("requested_at", { ascending: false });
+
+    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    if (!data || data.length === 0) return [];
+
+    const bookIds = Array.from(new Set(data.map(r => r.book_id).filter(Boolean)));
+    const userIds = Array.from(new Set(data.map(r => r.student_user_id).filter(Boolean)));
+
+    const [booksResponse, profilesResponse] = await Promise.all([
+        supabase.from("books").select("id, available").in("id", bookIds),
+        supabase.from("profiles").select("id, role").in("id", userIds)
+    ]);
+
+    const availabilityMap = new Map<string, number>();
+    if (!booksResponse.error && booksResponse.data) {
+        booksResponse.data.forEach(b => availabilityMap.set(b.id, b.available ?? 0));
+    }
+
+    const roleMap = new Map<string, string>();
+    if (!profilesResponse.error && profilesResponse.data) {
+        profilesResponse.data.forEach(p => roleMap.set(p.id, p.role ?? ""));
+    }
+
+    return data.map(item => ({
+        ...item,
+        book_available: availabilityMap.get(item.book_id) ?? 0,
+        member_role: roleMap.get(item.student_user_id) || "student"
+    }));
+}
+
+export async function fetchBookReservationsForMember(memberId: string): Promise<BookReservation[]> {
+    const normalizedMemberId = sanitizeText(memberId);
+    if (!normalizedMemberId) return [];
+
+    const { data, error } = await supabase
+        .from("book_reservations")
+        .select("*")
+        .eq("student_user_id", normalizedMemberId)
         .order("requested_at", { ascending: false });
 
     if (error) throw new Error(getMissingReservationsTableMessage(error));
@@ -1876,17 +1920,59 @@ export async function fetchBookReservations(): Promise<BookReservation[]> {
 }
 
 export async function fetchBookReservationsByStudent(studentUserId: string): Promise<BookReservation[]> {
-    const normalizedStudentId = sanitizeText(studentUserId);
-    if (!normalizedStudentId) return [];
+    return fetchBookReservationsForMember(studentUserId);
+}
 
-    const { data, error } = await supabase
-        .from("book_reservations")
+export async function createNotificationOnce(
+    recipientId: string,
+    type: LibraryNotificationType,
+    title: string,
+    message: string,
+    relatedBookId?: string | null,
+    meta?: Record<string, any> | null,
+): Promise<any> {
+    const normalizedRecipientId = sanitizeText(recipientId);
+    if (!normalizedRecipientId) throw new Error("Recipient ID is required");
+
+    let query = supabase
+        .from("notifications")
         .select("*")
-        .eq("student_user_id", normalizedStudentId)
-        .order("requested_at", { ascending: false });
+        .eq("recipient_id", normalizedRecipientId)
+        .eq("type", type);
 
-    if (error) throw new Error(getMissingReservationsTableMessage(error));
-    return (data ?? []) as BookReservation[];
+    if (relatedBookId) {
+        query = query.eq("related_book_id", relatedBookId);
+    }
+
+    if (meta?.reservation_id) {
+        query = query.eq("meta->>reservation_id", meta.reservation_id);
+    }
+    if (meta?.notification_event) {
+        query = query.eq("meta->>notification_event", meta.notification_event);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(getMissingNotificationsTableMessage(error));
+
+    if (data && data.length > 0) {
+        return data[0];
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+        .from("notifications")
+        .insert({
+            recipient_id: normalizedRecipientId,
+            type,
+            title,
+            message,
+            related_book_id: relatedBookId || null,
+            meta: meta || null,
+        })
+        .select()
+        .single();
+
+    if (insertError) throw new Error(getMissingNotificationsTableMessage(insertError));
+    return inserted;
 }
 
 export async function createBookReservation(book: Book): Promise<BookReservation> {
@@ -1895,13 +1981,31 @@ export async function createBookReservation(book: Book): Promise<BookReservation
     if (!user) throw new Error("Please sign in to reserve books");
 
     const profile = await fetchProfile(user.id);
+    if (!profile) throw new Error("User profile not found");
+    
+    const role = profile.role;
+    if (role !== "student" && role !== "faculty") {
+        throw new Error("Only students or faculty can reserve books");
+    }
+
+    // Verify book's latest availability is 0
+    const { data: bookDb, error: bookDbError } = await supabase
+        .from("books")
+        .select("available")
+        .eq("id", book.id)
+        .single();
+    if (bookDbError) throw new Error("Failed to verify book availability");
+    if ((bookDb.available ?? 0) > 0) {
+        throw new Error("This book is currently available and cannot be reserved");
+    }
+
     const studentName =
-        sanitizeText(profile?.name) ||
+        sanitizeText(profile.name) ||
         sanitizeText(user.user_metadata?.name) ||
         sanitizeText(user.email?.split("@")[0]) ||
         "Library Member";
-    const studentEmail = sanitizeText(profile?.email, sanitizeText(user.email)).toLowerCase();
-    const studentRegNo = sanitizeText(profile?.reg_no, sanitizeText(user.user_metadata?.reg_no));
+    const studentEmail = sanitizeText(profile.email, sanitizeText(user.email)).toLowerCase();
+    const studentRegNo = sanitizeText(profile.reg_no, sanitizeText(user.user_metadata?.reg_no));
 
     const existing = await supabase
         .from("book_reservations")
@@ -1912,7 +2016,9 @@ export async function createBookReservation(book: Book): Promise<BookReservation
         .maybeSingle();
 
     if (existing.error) throw new Error(getMissingReservationsTableMessage(existing.error));
-    if (existing.data) return existing.data as BookReservation;
+    if (existing.data) {
+        throw new Error("You already have an active reservation for this book");
+    }
 
     const payload = {
         book_id: book.id,
@@ -1933,7 +2039,26 @@ export async function createBookReservation(book: Book): Promise<BookReservation
         .select()
         .single();
 
-    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    if (error) {
+        if (error.code === "23505") {
+            throw new Error("You already have an active reservation for this book");
+        }
+        throw new Error(getMissingReservationsTableMessage(error));
+    }
+
+    // Attempt to insert notification (trigger will also run, but client logic expects this)
+    await createNotificationOnce(
+        user.id,
+        "reservation",
+        "Reservation Requested",
+        `You have reserved the book "${payload.book_title}". Status: pending.`,
+        book.id,
+        {
+            reservation_id: data.id,
+            notification_event: "reservation_created_user"
+        }
+    ).catch(() => {}); // ignore RLS or duplicate fails since trigger has us covered
+
     return data as BookReservation;
 }
 
@@ -1961,20 +2086,119 @@ export async function updateBookReservationStatus(
         .single();
 
     if (error) throw new Error(getMissingReservationsTableMessage(error));
+
+    // Send status update notification to reserving member
+    const notificationTitle = `Reservation ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+    const notificationMessage = `Your reservation for "${data.book_title}" has been ${status}.` +
+        (notes ? ` Notes: ${notes}` : "");
+
+    await createNotificationOnce(
+        data.student_user_id,
+        "reservation",
+        notificationTitle,
+        notificationMessage,
+        data.book_id,
+        {
+            reservation_id: data.id,
+            notification_event: `reservation_status_${status}`
+        }
+    ).catch(err => console.error("Failed to notify user on status update:", err));
+
     return data as BookReservation;
 }
 
 export async function cancelBookReservation(reservationId: string): Promise<BookReservation> {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error("Please sign in to cancel reservations");
+
     const { data, error } = await supabase
         .from("book_reservations")
         .update({ status: "cancelled", processed_at: new Date().toISOString() })
         .eq("id", reservationId)
+        .eq("student_user_id", user.id)
         .eq("status", "pending")
         .select()
         .single();
 
-    if (error) throw new Error(getMissingReservationsTableMessage(error));
+    if (error) throw new Error("Failed to cancel reservation. You can only cancel your own pending reservations.");
+
+    // Send user cancellation notification
+    await createNotificationOnce(
+        user.id,
+        "reservation",
+        "Reservation Cancelled",
+        `You have cancelled your reservation for "${data.book_title}".`,
+        data.book_id,
+        {
+            reservation_id: data.id,
+            notification_event: "reservation_cancelled_user"
+        }
+    ).catch(err => console.error("Failed to create cancellation notification:", err));
+
     return data as BookReservation;
+}
+
+export async function notifyReservationBookAvailable(bookId: string): Promise<void> {
+    const normalizedBookId = sanitizeText(bookId);
+    if (!normalizedBookId) return;
+
+    // Fetch the book title
+    const { data: book, error: bookError } = await supabase
+        .from("books")
+        .select("title")
+        .eq("id", normalizedBookId)
+        .single();
+    if (bookError || !book) return;
+
+    // Fetch all active reservations for this book
+    const { data: reservations, error: resError } = await supabase
+        .from("book_reservations")
+        .select("*")
+        .eq("book_id", normalizedBookId)
+        .in("status", ["pending", "approved"]);
+
+    if (resError || !reservations || reservations.length === 0) return;
+
+    // Fetch all staff profiles
+    const { data: staff, error: staffError } = await supabase
+        .from("profiles")
+        .select("id")
+        .in("role", ["admin", "librarian"]);
+    const staffIds = (staffError || !staff) ? [] : staff.map((s) => s.id);
+
+    // Notify reserving users and staff
+    for (const reservation of reservations) {
+        // Notify member
+        const memberMsg = `Your reserved book "${book.title}" is now available. Please contact the library.`;
+        await createNotificationOnce(
+            reservation.student_user_id,
+            "reservation",
+            "Reserved Book Available",
+            memberMsg,
+            normalizedBookId,
+            {
+                reservation_id: reservation.id,
+                notification_event: "reserved_book_available_user"
+            }
+        ).catch(err => console.error("Failed to notify reserving user:", err));
+
+        // Notify all staff members
+        const staffMsg = `Reserved book is available: "${book.title}". Reserved by ${reservation.student_name}.`;
+        for (const staffId of staffIds) {
+            await createNotificationOnce(
+                staffId,
+                "reservation",
+                "Reserved Book Available",
+                staffMsg,
+                normalizedBookId,
+                {
+                    reservation_id: reservation.id,
+                    notification_event: `reserved_book_available_staff_${staffId}`
+                }
+            ).catch(err => console.error("Failed to notify staff member:", err));
+        }
+    }
 }
 
 export async function fetchProfiles(): Promise<UserProfile[]> {

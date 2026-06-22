@@ -27,8 +27,10 @@ function getStatusClass(status: BookReservationStatus) {
   return "bg-muted text-muted-foreground";
 }
 
+type ExtendedReservation = BookReservation & { book_available?: number; member_role?: string };
+
 export default function ReservationsPage() {
-  const [reservations, setReservations] = useState<BookReservation[]>([]);
+  const [reservations, setReservations] = useState<ExtendedReservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingIds, setUpdatingIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -73,6 +75,7 @@ export default function ReservationsPage() {
       reservation.student_email,
       reservation.student_reg_no,
       reservation.status,
+      reservation.member_role,
     ].some((value) => String(value ?? "").toLowerCase().includes(query)));
   }, [reservations, search]);
 
@@ -83,13 +86,21 @@ export default function ReservationsPage() {
   }), [reservations]);
 
   const handleStatusUpdate = async (
-    reservation: BookReservation,
+    reservation: ExtendedReservation,
     status: Exclude<BookReservationStatus, "pending">,
   ) => {
     setUpdatingIds((prev) => Array.from(new Set([...prev, reservation.id])));
     try {
       const updated = await updateBookReservationStatus(reservation.id, status);
-      setReservations((prev) => prev.map((item) => item.id === updated.id ? updated : item));
+      setReservations((prev) => prev.map((item) => {
+        if (item.id === updated.id) {
+          return {
+            ...item,
+            ...updated,
+          };
+        }
+        return item;
+      }));
       toast.success(`Reservation ${status}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update reservation";
@@ -112,7 +123,7 @@ export default function ReservationsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Reservations</h1>
-          <p className="text-muted-foreground mt-1">Review student reservation requests from OPAC</p>
+          <p className="text-muted-foreground mt-1">Review member reservation requests from OPAC</p>
         </div>
       </div>
 
@@ -160,12 +171,14 @@ export default function ReservationsPage() {
                   </div>
                   <p className="text-sm text-muted-foreground">{reservation.book_author || "Unknown Author"}</p>
                   <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs text-muted-foreground">
-                    <span>Student: {reservation.student_name}</span>
+                    <span>Borrower: {reservation.student_name}</span>
+                    <span className="capitalize">Role: {reservation.member_role || "student"}</span>
                     <span>Email: {reservation.student_email}</span>
                     <span>Reg No: {reservation.student_reg_no || "N/A"}</span>
-                    <span>Requested: {formatDateTime(reservation.requested_at)}</span>
                     <span>Book No: {reservation.book_number || "N/A"}</span>
                     <span>Accession: {reservation.accession_no || "N/A"}</span>
+                    <span>Available Copies: {reservation.book_available ?? 0}</span>
+                    <span>Requested: {formatDateTime(reservation.requested_at)}</span>
                     <span>Processed: {formatDateTime(reservation.processed_at)}</span>
                   </div>
                 </div>

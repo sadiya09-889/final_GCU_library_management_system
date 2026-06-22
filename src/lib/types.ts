@@ -126,7 +126,7 @@ export interface BookReservation {
     created_at?: string;
 }
 
-export type LibraryNotificationType = "due_soon" | "overdue" | "penalty" | "custom";
+export type LibraryNotificationType = "due_soon" | "overdue" | "penalty" | "custom" | "reservation";
 
 export interface LibraryNotification {
     id: string;

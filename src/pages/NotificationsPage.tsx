@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bell, BookOpen, Clock, Loader2 } from "lucide-react";
+import { AlertTriangle, Bell, BookOpen, BookmarkCheck, Clock, Loader2 } from "lucide-react";
 import { fetchNotificationsForStudent, markNotificationsAsRead } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
 import { resolveCurrentUserContext } from "@/lib/accountRole";
@@ -16,6 +16,7 @@ const icons: Record<LibraryNotificationType, typeof Bell> = {
   overdue: AlertTriangle,
   penalty: BookOpen,
   custom: Bell,
+  reservation: BookmarkCheck,
 };
 
 const iconColors: Record<LibraryNotificationType, string> = {
@@ -23,6 +24,7 @@ const iconColors: Record<LibraryNotificationType, string> = {
   overdue: "text-destructive",
   penalty: "text-secondary",
   custom: "text-secondary",
+  reservation: "text-accent",
 };
 
 function formatRelative(date: Date): string {
