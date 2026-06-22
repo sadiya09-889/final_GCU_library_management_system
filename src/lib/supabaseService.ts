@@ -1341,20 +1341,20 @@ export async function fetchIssuedBooksByStudent(
     addProfile(directRegNo ? await fetchProfile(directRegNo) : null);
     addProfile(directEmail ? await fetchProfileByEmail(directEmail) : null);
 
-    const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+    const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
     // Collect all candidate student IDs (must be valid UUIDs)
     const candidateStudentIds = Array.from(new Set([
         isUuid(directId) ? directId : "",
         ...Array.from(matchedProfiles.values()).map((profile) => sanitizeText(profile.id)),
-    ].filter(Boolean)));
+    ].filter(isUuid)));
 
     // Collect all candidate registration numbers (strings that are not UUIDs)
     const candidateRegNos = Array.from(new Set([
         (!isUuid(directId) && directId) ? directId : "",
-        directRegNo,
+        (!isUuid(directRegNo) && directRegNo) ? directRegNo : "",
         ...Array.from(matchedProfiles.values()).map((profile) => sanitizeText(profile.reg_no)),
-    ].filter(Boolean)));
+    ].filter((val) => val && !isUuid(val))));
 
     const candidateEmails = Array.from(new Set([
         directEmail,
@@ -2211,7 +2211,7 @@ export async function fetchProfiles(): Promise<UserProfile[]> {
 }
 
 function looksLikeUuid(value: string) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 export async function fetchProfile(userIdentifier: string): Promise<UserProfile | null> {
