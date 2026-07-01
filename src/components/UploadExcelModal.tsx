@@ -47,11 +47,19 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
       throw new Error("File must contain at least human-readable headers (row 2) and data (row 3 onwards).");
     }
 
-    // Row index 0: KOHA field codes (skip)
-    // Row index 1: human-readable headers
-    const rawHeaders = (rows[1] || []).map(h => String(h || "").trim());
+    // Find the header row (the first row with a 'Title' or 'title' column)
+    let headerRowIndex = 0;
+    for (let i = 0; i < Math.min(5, rows.length); i++) {
+      const row = rows[i] || [];
+      if (row.some(cell => String(cell || "").trim().toLowerCase() === 'title')) {
+        headerRowIndex = i;
+        break;
+      }
+    }
 
-    // Map column names to index
+    const rawHeaders = (rows[headerRowIndex] || []).map(h => String(h || "").trim().toLowerCase());
+
+    // Map column names to index (case-insensitive)
     const colMap: Record<string, number> = {};
     rawHeaders.forEach((header, idx) => {
       if (header) {
@@ -61,16 +69,23 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
 
     const books: Partial<Book>[] = [];
 
-    // Data starts from row index 2
-    for (let i = 2; i < rows.length; i++) {
+    // Data starts after header row
+    for (let i = headerRowIndex + 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length === 0) continue;
 
-      const getVal = (colName: string): string => {
-        const idx = colMap[colName];
-        if (idx === undefined || idx >= row.length) return "";
-        const val = row[idx];
-        return val !== undefined && val !== null ? String(val).trim() : "";
+      const getVal = (colNames: string | string[]): string => {
+        const names = Array.isArray(colNames) ? colNames : [colNames];
+        for (const name of names) {
+          const idx = colMap[name.toLowerCase()];
+          if (idx !== undefined && idx < row.length) {
+            const val = row[idx];
+            if (val !== undefined && val !== null) {
+              return String(val).trim();
+            }
+          }
+        }
+        return "";
       };
 
       const title = getVal("Title");
@@ -78,7 +93,7 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
       if (!title) continue;
 
       // Extract and parse no_of_copies
-      const rawCopies = getVal("no_of_copies");
+      const rawCopies = getVal(["no_of_copies", "no. of copies"]);
       let noOfCopies = parseInt(rawCopies, 10);
       if (isNaN(noOfCopies) || noOfCopies < 1) {
         noOfCopies = 1;
@@ -126,9 +141,9 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
         subject: getVal("Subject"),   // Map Subject -> subject
         available: noOfCopies,        // available = no_of_copies
         total: noOfCopies,            // total = no_of_copies
-        class_number: getVal("class no"),
+        class_number: getVal(["class no", "Class No"]),
         book_number: getVal("Book No"),
-        edition: getVal("edition"),
+        edition: getVal(["edition", "Edition"]),
         place_of_publication: getVal("Place of Pub."),
         name_of_publication: getVal("Name of Publication"),
         year_of_publication: yearOfPub,
@@ -136,7 +151,7 @@ export default function UploadExcelModal({ isOpen, onClose, onSuccess }: Props) 
         volume: getVal("Volume"),
         general_note: getVal("General Note"),
         permanent_location: getVal("Permanent Location"),
-        current_library: getVal("current Library"),
+        current_library: getVal(["current Library", "Current Library"]),
         location: getVal("Location"),
         date_of_purchase: dateOfPurchase,
         vendor: getVal("Vendor"),

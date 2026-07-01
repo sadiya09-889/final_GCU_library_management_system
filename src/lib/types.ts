@@ -48,7 +48,17 @@ export interface IssuedBook {
     return_quality_status?: "excellent" | "good" | "minor_damage" | "damaged";
     return_quality_notes?: string;
     return_quality_checked_at?: string;
-    return_quality_checklist?: {
+    books?: {
+        book_number?: string;
+        accession_no?: string;
+        isbn?: string;
+        category?: string;
+        permanent_location?: string;
+        location?: string;
+        title?: string;
+        author?: string;
+      };
+      return_quality_checklist?: {
         coverIntact: boolean;
         pagesIntact: boolean;
         bindingIntact: boolean;
@@ -67,6 +77,7 @@ export interface UserProfile {
     department?: string;
     contact_number?: string;
     reg_no?: string;
+    faculty_id?: string;
     join_date: string;
     avatar_url?: string;
 }

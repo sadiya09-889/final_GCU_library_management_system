@@ -9,6 +9,7 @@ export default function SignupPage() {
   const [stage, setStage] = useState<"role-selection" | "form">("role-selection");
   const [name, setName] = useState("");
   const [regNo, setRegNo] = useState("");
+  const [facultyId, setFacultyId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,11 +27,19 @@ export default function SignupPage() {
 
     const trimmedName = name.trim();
     const trimmedRegNo = regNo.trim();
+    const trimmedFacultyId = facultyId.trim();
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!trimmedName) {
       setError("Full name is required.");
       return;
+    }
+
+    if (accountType === "faculty") {
+      if (!trimmedFacultyId) {
+        setError("Faculty ID is required for faculty accounts.");
+        return;
+      }
     }
 
     if (accountType === "student") {
@@ -67,6 +76,7 @@ export default function SignupPage() {
           name: trimmedName,
           role: accountType,
           reg_no: accountType === "student" ? trimmedRegNo : "",
+          faculty_id: accountType === "faculty" ? trimmedFacultyId : "",
           school: "",
           department: "",
           contact_number: "",
@@ -238,6 +248,22 @@ export default function SignupPage() {
                       required
                       maxLength={30}
                       placeholder="e.g. 23BTRE101"
+                      className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
+                    />
+                  </div>
+                )}
+
+                {/* Faculty ID (Faculty Only) */}
+                {accountType === "faculty" && (
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Faculty ID</label>
+                    <input
+                      type="text"
+                      value={facultyId}
+                      onChange={e => setFacultyId(e.target.value)}
+                      required
+                      maxLength={30}
+                      placeholder="e.g. FAC-2023-001"
                       className="w-full px-4 py-3 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 transition"
                     />
                   </div>

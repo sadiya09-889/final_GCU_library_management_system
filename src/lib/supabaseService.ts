@@ -484,6 +484,27 @@ export async function fetchAllBooks(pageSize = 1000): Promise<Book[]> {
     return all;
 }
 
+export async function fetchTotalBookCopiesCount(): Promise<number> {
+    const pageSize = 1000;
+    let sum = 0;
+    for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase
+            .from("books")
+            .select("total")
+            .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        sum += data.reduce((acc, row) => {
+            const val = Number(row.total);
+            return acc + (Number.isFinite(val) ? val : 1);
+        }, 0);
+        
+        if (data.length < pageSize) break;
+    }
+    return sum;
+}
+
 export async function fetchBookRecordCount(): Promise<number> {
     const { count, error } = await supabase
         .from("books")
@@ -505,11 +526,8 @@ export async function fetchAvailableBookRecordCount(): Promise<number> {
 
 async function fetchLibraryReportSummaryFallback(): Promise<LibraryReportSummary> {
     const [totalCollection, issuedBooks, overdueBooks] = await Promise.all([
-        fetchBookRecordCount(),
-        supabase
-            .from("issued_books")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "issued"),
+        fetchTotalBookCopiesCount(),
+        supabase.from("issued_books").select("id", { count: "exact", head: true }),
         supabase
             .from("issued_books")
             .select("id", { count: "exact", head: true })
@@ -527,6 +545,7 @@ async function fetchLibraryReportSummaryFallback(): Promise<LibraryReportSummary
 }
 
 export async function fetchLibraryReportSummary(): Promise<LibraryReportSummary> {
+    return fetchLibraryReportSummaryFallback();
     const { data, error } = await supabase.rpc("get_library_report_summary");
 
     if (error) {

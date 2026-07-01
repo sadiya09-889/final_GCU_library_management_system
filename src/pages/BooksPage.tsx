@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Plus, Edit2, Trash2, X, BookOpen, Filter, Loader2, Download, Upload, Send, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import type { Book } from "@/lib/types";
-import { fetchBooksPage, fetchBookRecordCount, fetchBookCategories, fetchAllBooks, addBook, updateBook, deleteBook, issueBook, fetchProfile } from "@/lib/supabaseService";
+import { fetchBooksPage, fetchTotalBookCopiesCount, fetchBookCategories, fetchAllBooks, addBook, updateBook, deleteBook, issueBook, fetchProfile } from "@/lib/supabaseService";
 import { exportRowsAsExcelCsv } from "@/lib/excelExport";
 import UploadExcelModal from "@/components/UploadExcelModal";
 import { supabase } from "@/lib/supabase";
@@ -169,7 +169,7 @@ export default function BooksPage() {
         const totalPagesForResults = Math.max(1, Math.ceil(filteredBooks.length / perPage));
         const safePage = Math.min(page, totalPagesForResults);
 
-        setTotalBookRecords(allBooks.length);
+        setTotalBookRecords(allBooks.reduce((sum, b) => sum + (Number(b.total) || 1), 0));
         setMatchingBookRecords(filteredBooks.length);
         setBooks(filteredBooks.slice((safePage - 1) * perPage, safePage * perPage));
 
@@ -178,7 +178,7 @@ export default function BooksPage() {
         }
       } else {
         const [bookCount, pageResult] = await Promise.all([
-          fetchBookRecordCount(),
+          fetchTotalBookCopiesCount(),
           fetchBooksPage({
             page,
             perPage,

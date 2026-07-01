@@ -7,7 +7,7 @@ import {
 import { toast } from "sonner";
 import type { Book, IssuedBook, UserProfile } from "@/lib/types";
 import { 
-  fetchBooksPage, fetchBookRecordCount, fetchBookCategories, fetchAllBooks, 
+  fetchBooksPage, fetchTotalBookCopiesCount, fetchBookCategories, fetchAllBooks, 
   addBook, updateBook, deleteBook, issueBook, returnBook, renewBook, 
   fetchIssuedBooks, fetchProfile, type ReturnQualityCheck, checkAndUpdateOverdueBooks,
   sendOverdueNotificationForIssue, fetchIssuedBooksByStudent, searchStudents,
@@ -49,7 +49,7 @@ function getInitials(name: string): string {
 }
 
 export default function BookManagementPage() {
-  const [activeTab, setActiveTab] = useState<"catalog" | "issue" | "return" | "renew">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "circulation">("catalog");
   const [loading, setLoading] = useState(true);
 
   // --- Catalog Tab State ---
@@ -178,13 +178,13 @@ export default function BookManagementPage() {
         const totalPagesForResults = Math.max(1, Math.ceil(filteredBooks.length / perPage));
         const safePage = Math.min(page, totalPagesForResults);
 
-        setTotalBookRecords(allBooks.length);
+        setTotalBookRecords(allBooks.reduce((sum, b) => sum + (Number(b.total) || 1), 0));
         setMatchingBookRecords(filteredBooks.length);
         setBooks(filteredBooks.slice((safePage - 1) * perPage, safePage * perPage));
         if (safePage !== page) setPage(safePage);
       } else {
         const [bookCount, pageResult] = await Promise.all([
-          fetchBookRecordCount(),
+          fetchTotalBookCopiesCount(),
           fetchBooksPage({
             page,
             perPage,
@@ -371,7 +371,7 @@ export default function BookManagementPage() {
     setBookSearchText(book.book_number || "");
     setBookSearchResults([book]);
     setHasSearchedBooks(true);
-    setActiveTab("issue");
+    setActiveTab("circulation");
   };
 
   // Issue Book Submit
@@ -673,9 +673,7 @@ export default function BookManagementPage() {
         <div className="flex flex-wrap -mb-px text-sm font-medium text-center">
           {[
             { id: "catalog", label: "Add/Search Books", icon: BookOpen },
-            { id: "issue", label: "Issue Book", icon: Send },
-            { id: "return", label: "Return Book", icon: RotateCcw },
-            { id: "renew", label: "Re-issue / Renew", icon: RefreshCw },
+            { id: "circulation", label: "Circulation", icon: Send },
           ].map((tab) => {
             const active = activeTab === tab.id;
             return (
@@ -906,9 +904,9 @@ export default function BookManagementPage() {
           </div>
         )}
 
-        {/* --- ISSUE TAB --- */}
-        {activeTab === "issue" && (
-          <div className="grid gap-6 md:grid-cols-2">
+        {/* --- CIRCULATION TAB --- */}
+        {activeTab === "circulation" && (
+          <div className="max-w-4xl mx-auto space-y-6">
             
             {/* Borrower Lookup Card */}
             <div className="bg-card rounded-xl border border-border p-5 shadow-card flex flex-col justify-between">
@@ -985,7 +983,7 @@ export default function BookManagementPage() {
 
                 {/* Selected Student Details Panel */}
                 {borrowerProfile ? (
-                  <div className="border border-border rounded-xl p-4 bg-muted/20 relative mt-4">
+                  <div className="border border-border rounded-xl p-6 bg-muted/10 relative mt-4">
                     <button
                       onClick={handleClearSelectedStudent}
                       className="absolute right-3 top-3 text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/80 transition-colors"
@@ -994,20 +992,20 @@ export default function BookManagementPage() {
                       <X className="h-4 w-4" />
                     </button>
 
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="flex flex-col sm:flex-row items-center gap-6">
                       {/* Avatar Photo or Initials */}
                       <div className="flex-shrink-0">
                         {borrowerProfile.avatar_url ? (
                           <img
                             src={borrowerProfile.avatar_url}
                             alt={borrowerProfile.name}
-                            className="w-14 h-14 rounded-full object-cover border-2 border-secondary/35"
+                            className="w-20 h-20 rounded-full object-cover border-2 border-secondary/35"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
                             }}
                           />
                         ) : (
-                          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white font-semibold text-lg flex items-center justify-center shadow-sm">
+                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white font-semibold text-2xl flex items-center justify-center shadow-sm">
                             {getInitials(borrowerProfile.name)}
                           </div>
                         )}
@@ -1015,359 +1013,251 @@ export default function BookManagementPage() {
 
                       {/* Detail fields */}
                       <div className="flex-1 text-center sm:text-left min-w-0">
-                        <h3 className="font-bold text-base text-foreground truncate">{borrowerProfile.name}</h3>
-                        <p className="text-xs text-muted-foreground truncate mb-2">{borrowerProfile.email}</p>
+                        <h3 className="font-bold text-lg text-foreground truncate">{borrowerProfile.name}</h3>
+                        <p className="text-sm text-muted-foreground truncate mb-3">{borrowerProfile.email}</p>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2 text-sm">
                           {borrowerProfile.reg_no && (
-                            <p className="truncate"><strong className="text-foreground">Reg No:</strong> {borrowerProfile.reg_no}</p>
+                            <p className="truncate"><strong className="text-foreground font-medium">Reg No:</strong> {borrowerProfile.reg_no}</p>
                           )}
                           {borrowerProfile.contact_number && (
-                            <p className="truncate"><strong className="text-foreground">Contact:</strong> {borrowerProfile.contact_number}</p>
+                            <p className="truncate"><strong className="text-foreground font-medium">Contact:</strong> {borrowerProfile.contact_number}</p>
                           )}
                           {borrowerProfile.school && (
-                            <p className="truncate sm:col-span-2"><strong className="text-foreground">School:</strong> {borrowerProfile.school}</p>
+                            <p className="truncate"><strong className="text-foreground font-medium">School:</strong> {borrowerProfile.school}</p>
                           )}
                           {borrowerProfile.department && (
-                            <p className="truncate sm:col-span-2"><strong className="text-foreground">Dept:</strong> {borrowerProfile.department}</p>
+                            <p className="truncate"><strong className="text-foreground font-medium">Dept:</strong> {borrowerProfile.department}</p>
                           )}
                         </div>
                       </div>
                     </div>
 
                     {/* Borrower Current Active Loans */}
-                    <div className="mt-4 border-t border-border pt-3">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    <div className="mt-8 border-t border-border pt-6">
+                      <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                        <BookOpen className="h-4 w-4 text-secondary" />
                         Currently Issued Books ({borrowerActiveLoans.length})
-                      </p>
+                      </h4>
                       {borrowerProfileLoading ? (
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-2">
-                          <Loader2 className="h-3 w-3 animate-spin text-secondary" />
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
+                          <Loader2 className="h-4 w-4 animate-spin text-secondary" />
                           Loading loans...
                         </div>
                       ) : borrowerActiveLoans.length > 0 ? (
-                        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                          {borrowerActiveLoans.map((l) => (
-                            <div key={l.id} className="text-xs border border-border bg-card rounded p-2 flex justify-between items-center shadow-sm">
-                              <div className="min-w-0 pr-2">
-                                <p className="font-semibold text-foreground truncate">{l.book_title}</p>
-                                <p className="text-[10px] text-muted-foreground mt-0.5">
-                                  Due: {l.due_date} {l.status === "overdue" && <span className="text-destructive font-bold ml-1">(Overdue)</span>}
-                                </p>
+                        <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                          {borrowerActiveLoans.map((l) => {
+                            const due = new Date(l.due_date);
+                            const today = new Date();
+                            const daysOverdue = Math.max(0, Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
+                            const penaltyFee = daysOverdue * 2; // FEE_PER_DAY = 2
+
+                            return (
+                            <div key={l.id} className="text-sm border border-border bg-card rounded-lg p-4 flex flex-col lg:flex-row justify-between gap-4 shadow-sm hover:shadow transition-shadow">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-base text-foreground mb-1">{l.book_title}</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                  {l.books?.book_number && <p>Book No: <span className="text-foreground">{l.books.book_number}</span></p>}
+                                  {l.books?.accession_no && <p>Accession: <span className="text-foreground">{l.books.accession_no}</span></p>}
+                                  {l.books?.isbn && <p>ISBN: <span className="text-foreground">{l.books.isbn}</span></p>}
+                                  <p>Issue Date: <span className="text-foreground">{l.issue_date}</span></p>
+                                  <p>Due Date: <span className="text-foreground">{l.due_date}</span></p>
+                                  <p>Renewals: <span className="text-foreground">{l.renewal_count || 0}</span></p>
+                                </div>
+                                {daysOverdue > 0 && (
+                                  <div className="mt-2 inline-block text-xs text-destructive font-medium bg-destructive/10 px-2 py-0.5 rounded">
+                                    {daysOverdue} days overdue · Penalty: ₹{penaltyFee}
+                                  </div>
+                                )}
                               </div>
-                              <span className="text-[10px] bg-secondary/15 text-secondary px-1.5 py-0.5 rounded capitalize flex-shrink-0 font-medium">{l.status}</span>
+                              <div className="flex lg:flex-col items-center lg:items-end justify-center gap-2 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border pt-3 lg:pt-0 lg:pl-4">
+                                <span className={`text-xs px-2 py-0.5 rounded capitalize font-medium mb-1 ${l.status === 'overdue' ? 'bg-destructive/10 text-destructive' : 'bg-secondary/15 text-secondary'}`}>{l.status}</span>
+                                <div className="flex gap-2">
+                                  <button onClick={() => triggerReturnQualityCheck(l)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-secondary/10 text-secondary font-medium text-xs rounded-md transition-colors border border-transparent hover:border-secondary/20" title="Return Book">
+                                    <RotateCcw className="h-3.5 w-3.5" /> Return
+                                  </button>
+                                  <button onClick={() => void handleRenewBookSubmit(l)} disabled={renewingId === l.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-secondary/10 text-secondary font-medium text-xs rounded-md transition-colors border border-transparent hover:border-secondary/20 disabled:opacity-50" title="Renew Book">
+                                    <RefreshCw className={`h-3.5 w-3.5 ${renewingId === l.id ? 'animate-spin' : ''}`} /> Renew
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                          ))}
+                          )})}
                         </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground py-1">No active issues</p>
+                        <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg bg-background/50">
+                          <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-30 text-muted-foreground" />
+                          <p className="text-sm font-medium">No Active Issued Books</p>
+                        </div>
                       )}
+                    </div>
+                    
+                    {/* Inline Issue New Book Section */}
+                    <div className="mt-8 pt-6 border-t border-border">
+                        <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                          <Send className="h-4 w-4 text-secondary" />
+                          Issue New Book
+                        </h4>
+                        <div className="flex gap-2 mb-4">
+                          <input
+                            value={bookSearchText}
+                            onChange={(e) => {
+                              setBookSearchText(e.target.value);
+                              if (issueBookRecord) {
+                                setIssueBookRecord(null);
+                                setBookSearchResults([]);
+                                setHasSearchedBooks(false);
+                              }
+                            }}
+                            onKeyDown={(e) => e.key === "Enter" && void handleSearchBookForIssue()}
+                            placeholder="Search by Book No, Accession, ISBN, Barcode, or Title..."
+                            className="flex-1 px-3 py-2.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50"
+                          />
+                          <button
+                            onClick={handleSearchBookForIssue}
+                            disabled={issueBookLoading}
+                            className="px-5 py-2.5 bg-secondary text-secondary-foreground font-medium text-sm rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {issueBookLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                            {issueBookLoading ? "Searching..." : "Search"}
+                          </button>
+                        </div>
+
+                        {/* Autocomplete / Results dropdown inline */}
+                        {!issueBookRecord && bookSearchText.trim() !== "" && hasSearchedBooks && (
+                          <div className="mb-4 border border-border rounded-lg bg-background max-h-80 overflow-y-auto divide-y divide-border shadow-inner">
+                            {issueBookLoading && (
+                              <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                                <Loader2 className="h-5 w-5 animate-spin text-secondary" />
+                                Searching catalog...
+                              </div>
+                            )}
+                            {!issueBookLoading && bookSearchResults.length === 0 && (
+                              <div className="p-6 text-center text-sm text-destructive font-medium bg-destructive/5">
+                                No matching books found in catalog.
+                              </div>
+                            )}
+                            {!issueBookLoading && bookSearchResults.map((b) => {
+                              const isOutOfStock = (b.available || 0) <= 0;
+                              return (
+                                <div
+                                  key={b.id}
+                                  className="w-full text-left p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                                >
+                                  <div className="flex items-start gap-4 min-w-0">
+                                    <div className="h-12 w-10 bg-muted border border-border rounded flex-shrink-0 flex items-center justify-center text-muted-foreground/50">
+                                      {/* Cover Image Placeholder */}
+                                      <BookOpen className="h-4 w-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-foreground text-base truncate">{b.title}</p>
+                                      <p className="text-sm text-muted-foreground truncate">{b.author}</p>
+                                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                                        {b.book_number && <span>Book No: <strong className="text-foreground font-medium">{b.book_number}</strong></span>}
+                                        {b.accession_no && <span>Acc: <strong className="text-foreground font-medium">{b.accession_no.split(',')[0]}</strong></span>}
+                                        {b.isbn && <span>ISBN: <strong className="text-foreground font-medium">{b.isbn}</strong></span>}
+                                        {b.category && <span>Category: <strong className="text-foreground font-medium">{b.category}</strong></span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 sm:gap-2 flex-shrink-0">
+                                    <div className="text-right">
+                                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium inline-block ${isOutOfStock ? "bg-destructive/10 text-destructive" : "bg-accent/20 text-accent-foreground"}`}>
+                                        {isOutOfStock ? "Out of Stock" : `${b.available} available`}
+                                      </span>
+                                      {(b.permanent_location || b.location) && (
+                                        <p className="text-[10px] text-muted-foreground mt-1">
+                                          Shelf: {b.permanent_location || b.location}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setIssueBookRecord(b);
+                                        if (isOutOfStock) {
+                                          toast.warning("Book exists but no copies available");
+                                        }
+                                      }}
+                                      className="px-4 py-1.5 bg-secondary text-secondary-foreground text-xs font-semibold rounded-md hover:bg-secondary/90 transition-colors"
+                                    >
+                                      Select
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Selected Book & Checkout */}
+                        {issueBookRecord && (
+                          <div className="border border-secondary/30 rounded-xl p-5 bg-secondary/5 mt-4">
+                            <div className="flex justify-between items-start mb-4">
+                              <h5 className="font-semibold text-foreground flex items-center gap-2">
+                                <CheckCircle className="h-4 w-4 text-accent-foreground" />
+                                Selected Book
+                              </h5>
+                              <button
+                                onClick={() => {
+                                  setIssueBookRecord(null);
+                                  setBookSearchResults([]);
+                                  setHasSearchedBooks(false);
+                                }}
+                                className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/80 transition-colors text-xs flex items-center gap-1 font-medium"
+                              >
+                                <X className="h-3 w-3" /> Change Book
+                              </button>
+                            </div>
+                            
+                            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm bg-background border border-border p-4 rounded-lg">
+                              <div className="sm:col-span-2">
+                                <p className="font-bold text-foreground text-lg mb-0.5">{issueBookRecord.title}</p>
+                                <p className="text-muted-foreground">{issueBookRecord.author}</p>
+                              </div>
+                              <p className="mt-2"><strong className="text-foreground">Book No:</strong> {issueBookRecord.book_number || "N/A"}</p>
+                              <p className="mt-2"><strong className="text-foreground">Accession:</strong> {issueBookRecord.accession_no || "N/A"}</p>
+                              <p><strong className="text-foreground">ISBN:</strong> {issueBookRecord.isbn || "N/A"}</p>
+                              <p><strong className="text-foreground">Category:</strong> {issueBookRecord.category || "General"}</p>
+                              <p className="sm:col-span-2 pt-2 mt-1 border-t border-border">
+                                <strong className="text-foreground">Current Stock:</strong> 
+                                <span className={`ml-2 font-bold px-2 py-0.5 rounded ${(issueBookRecord.available || 0) > 0 ? "bg-accent/20 text-accent-foreground" : "bg-destructive/10 text-destructive"}`}>
+                                  {issueBookRecord.available || 0} / {issueBookRecord.total || 0} available
+                                </span>
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={handleIssueBookSubmit}
+                              disabled={issuingSaving || !borrowerProfile || (issueBookRecord.available || 0) <= 0}
+                              className="w-full mt-5 inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-lg font-bold text-base gradient-warm text-secondary-foreground hover:opacity-90 transition-all disabled:opacity-50 disabled:grayscale shadow-md hover:shadow-lg"
+                            >
+                              {issuingSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                              {issuingSaving ? "Issuing book..." : "Confirm & Checkout Book"}
+                            </button>
+                            
+                            {(issueBookRecord.available || 0) <= 0 && (
+                              <p className="text-center text-xs text-destructive font-medium mt-3">This book is currently out of stock and cannot be issued.</p>
+                            )}
+                          </div>
+                        )}
                     </div>
                   </div>
                 ) : (
                   (!borrowerSearchText.trim() || (!searchingStudents && studentSearchResults.length === 0 && !hasSearchedStudents)) && (
-                    <div className="border border-dashed border-border rounded-xl p-8 text-center text-muted-foreground mt-4">
-                      <User className="h-8 w-8 mx-auto mb-2 opacity-30 text-muted-foreground" />
-                      <p className="text-sm font-medium">Search registered students to issue a book.</p>
-                      <p className="text-xs mt-1 opacity-70">Enter student name, email, or registration number above.</p>
+                    <div className="border border-dashed border-border rounded-xl p-12 text-center text-muted-foreground mt-4">
+                      <div className="w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center mx-auto mb-4">
+                        <User className="h-8 w-8 text-secondary/60" />
+                      </div>
+                      <p className="text-lg font-semibold text-foreground mb-1">Look up a borrower to begin</p>
+                      <p className="text-sm">Search by Name, Email, or Registration Number to access their circulation profile.</p>
                     </div>
                   )
                 )}
               </div>
             </div>
 
-            {/* Book Lookup & Issue Actions */}
-            <div className="bg-card rounded-xl border border-border p-5 shadow-card flex flex-col justify-between">
-              <div>
-                <h2 className="font-semibold text-lg text-foreground mb-4 flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-secondary" />
-                  2. Select Book
-                </h2>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    value={bookSearchText}
-                    onChange={(e) => {
-                      setBookSearchText(e.target.value);
-                      if (issueBookRecord) {
-                        setIssueBookRecord(null);
-                        setBookSearchResults([]);
-                        setHasSearchedBooks(false);
-                      }
-                    }}
-                    onKeyDown={(e) => e.key === "Enter" && void handleSearchBookForIssue()}
-                    placeholder="Search by Book No, Accession, ISBN, or Title"
-                    className="flex-1 px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-secondary/50"
-                  />
-                  <button
-                    onClick={handleSearchBookForIssue}
-                    disabled={issueBookLoading}
-                    className="px-4 py-2 bg-secondary text-secondary-foreground font-medium text-sm rounded-lg hover:opacity-90 disabled:opacity-50"
-                  >
-                    {issueBookLoading ? "Searching..." : "Search"}
-                  </button>
-                </div>
-
-                {/* Autocomplete / Results dropdown */}
-                {!issueBookRecord && bookSearchText.trim() !== "" && hasSearchedBooks && (
-                  <div className="mb-4 border border-border rounded-lg bg-card max-h-60 overflow-y-auto divide-y divide-border shadow-md">
-                    {issueBookLoading && (
-                      <div className="p-3 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-secondary" />
-                        Searching books...
-                      </div>
-                    )}
-                    {!issueBookLoading && bookSearchResults.length === 0 && (
-                      <div className="p-4 text-center text-sm text-destructive font-medium">
-                        No book found
-                      </div>
-                    )}
-                    {!issueBookLoading && bookSearchResults.map((b) => {
-                      const isOutOfStock = (b.available || 0) <= 0;
-                      return (
-                        <button
-                          key={b.id}
-                          onClick={() => {
-                            setIssueBookRecord(b);
-                            if (isOutOfStock) {
-                              toast.warning("Book exists but no copies available");
-                            }
-                          }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors flex items-center justify-between text-sm group"
-                        >
-                          <div className="min-w-0 pr-2">
-                            <p className="font-semibold text-foreground group-hover:text-secondary truncate">{b.title}</p>
-                            <p className="text-xs text-muted-foreground truncate">{b.author}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              Book No: {b.book_number} {b.accession_no ? `· Acc: ${b.accession_no}` : ""}
-                            </p>
-                          </div>
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium flex-shrink-0 ${isOutOfStock ? "bg-destructive/10 text-destructive" : "bg-accent/20 text-accent-foreground"}`}>
-                            {isOutOfStock ? "Out of Stock" : `${b.available} available`}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {issueBookRecord && (
-                  <div className="border border-border rounded-xl p-4 bg-muted/20 relative mt-4">
-                    <button
-                      onClick={() => {
-                        setIssueBookRecord(null);
-                        setBookSearchResults([]);
-                        setHasSearchedBooks(false);
-                      }}
-                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted/80 transition-colors"
-                      title="Clear selection"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div className="space-y-2 text-sm">
-                      <p className="font-semibold text-foreground text-base mb-1">{issueBookRecord.title}</p>
-                      <p><strong className="text-foreground">Author:</strong> {issueBookRecord.author}</p>
-                      <p><strong className="text-foreground">Book No:</strong> {issueBookRecord.book_number}</p>
-                      {issueBookRecord.accession_no && <p><strong className="text-foreground">Accession No:</strong> {issueBookRecord.accession_no}</p>}
-                      <p><strong className="text-foreground">Category:</strong> {issueBookRecord.category || "General"}</p>
-                      <p><strong className="text-foreground">Stock:</strong> 
-                        <span className={`ml-1 font-semibold ${(issueBookRecord.available || 0) > 0 ? "text-accent-foreground" : "text-destructive"}`}>
-                          {issueBookRecord.available || 0} / {issueBookRecord.total || 0} copies available
-                        </span>
-                      </p>
-                      {(issueBookRecord.available || 0) <= 0 && (
-                        <p className="text-xs text-destructive font-medium mt-1">Book exists but no copies available.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Checkout Trigger */}
-              <div className="border-t border-border pt-4 mt-6">
-                <button
-                  onClick={handleIssueBookSubmit}
-                  disabled={issuingSaving || !borrowerProfile || !issueBookRecord || (issueBookRecord.available || 0) <= 0}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4" />
-                  {issuingSaving ? "Issuing book..." : "Confirm & Checkout Book"}
-                </button>
-                {(!borrowerProfile || !issueBookRecord) && (
-                  <p className="text-center text-xs text-muted-foreground mt-2">Look up both borrower and book to proceed</p>
-                )}
-                {issueBookRecord && (issueBookRecord.available || 0) <= 0 && (
-                  <p className="text-center text-xs text-destructive mt-2">Selected book is out of stock</p>
-                )}
-              </div>
-            </div>
           </div>
         )}
-
-        {/* --- RETURN TAB --- */}
-        {activeTab === "return" && (
-          <div>
-            <div className="relative mb-6 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input 
-                value={loansSearch} 
-                onChange={e => setLoansSearch(e.target.value)}
-                placeholder="Search return queue by title, borrower name, or ID..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 text-sm" 
-              />
-            </div>
-
-            <div className="space-y-3">
-              {loansLoading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-secondary" />
-                  Loading loans queue...
-                </div>
-              )}
-              
-              {filteredLoans.filter(l => l.status === "issued" || l.status === "overdue").map((loan) => {
-                const due = new Date(loan.due_date);
-                const today = new Date();
-                const daysOverdue = Math.max(0, Math.ceil((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)));
-                const penaltyFee = daysOverdue * FEE_PER_DAY;
-
-                return (
-                  <div key={loan.id} className="bg-card rounded-xl p-5 shadow-card border border-border">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0 mt-1">
-                          <BookOpen className="h-5 w-5 text-secondary" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">{loan.book_title}</h3>
-                          <p className="text-muted-foreground text-sm">{loan.student_name} ({loan.student_id})</p>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Issued: {loan.issue_date}</span>
-                            <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Due: {loan.due_date}</span>
-                            {daysOverdue > 0 && (
-                              <div className="flex flex-wrap items-center gap-2 mt-2">
-                                <span className="text-destructive font-medium bg-destructive/10 px-2 py-0.5 rounded">
-                                  {daysOverdue} days overdue · Penalty: ₹{penaltyFee}
-                                </span>
-                                {notified.includes(loan.id) ? (
-                                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5 text-accent-foreground" /> Notified student</span>
-                                ) : (
-                                  <button
-                                    onClick={() => void handleNotifyOverdue(loan)}
-                                    disabled={notifyingId === loan.id}
-                                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded border border-secondary text-xs font-semibold text-secondary hover:bg-secondary/5 transition-colors disabled:opacity-50"
-                                  >
-                                    <Bell className="h-3 w-3" />
-                                    {notifyingId === loan.id ? "Notifying..." : "Notify Student"}
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                            {loan.renewal_count && loan.renewal_count > 0 ? (
-                              <span className="text-accent-foreground bg-accent/20 px-2 py-0.5 rounded">
-                                Renewed {loan.renewal_count} times
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => triggerReturnQualityCheck(loan)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm gradient-warm text-secondary-foreground hover:opacity-90 transition-opacity"
-                      >
-                        <CheckCircle className="h-4 w-4" /> Accept Return
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {!loansLoading && filteredLoans.filter(l => l.status === "issued" || l.status === "overdue").length === 0 && (
-                <div className="bg-card rounded-xl p-12 shadow-card border border-border text-center text-muted-foreground">
-                  <CheckCircle className="h-10 w-10 mx-auto mb-3 opacity-40 text-accent-foreground" />
-                  <p className="font-semibold text-foreground">All books returned!</p>
-                  <p className="text-sm mt-1">No pending active loans matching search criteria.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* --- RENEW TAB --- */}
-        {activeTab === "renew" && (
-          <div>
-            <div className="relative mb-6 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input 
-                value={loansSearch} 
-                onChange={e => setLoansSearch(e.target.value)}
-                placeholder="Search loans to renew by title or borrower..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary/50 text-sm" 
-              />
-            </div>
-
-            <div className="space-y-3">
-              {loansLoading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-secondary" />
-                  Loading loan list...
-                </div>
-              )}
-
-              {filteredLoans.filter(l => l.status === "issued" || l.status === "overdue").map((loan) => {
-                const isOverdue = loan.status === "overdue";
-                return (
-                  <div key={loan.id} className="bg-card rounded-xl p-5 shadow-card border border-border">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0 mt-1">
-                          <RefreshCw className="h-5 w-5 text-secondary" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">{loan.book_title}</h3>
-                          <p className="text-muted-foreground text-sm">{loan.student_name} ({loan.student_id})</p>
-                          <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
-                            <span>Current Due: <strong className={isOverdue ? "text-destructive" : "text-foreground"}>{loan.due_date}</strong></span>
-                            <span>Renewal Count: {loan.renewal_count || 0}</span>
-                            {loan.last_renewed_at && (
-                              <span>Last Renewed: {new Date(loan.last_renewed_at).toLocaleDateString()}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => void handleRenewBookSubmit(loan)}
-                        disabled={renewingId === loan.id}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm border border-secondary text-secondary hover:bg-secondary/5 transition-colors disabled:opacity-50"
-                      >
-                        {renewingId === loan.id ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Renewing...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-4 w-4" />
-                            Renew +15 Days
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {!loansLoading && filteredLoans.filter(l => l.status === "issued" || l.status === "overdue").length === 0 && (
-                <div className="bg-card rounded-xl p-12 shadow-card border border-border text-center text-muted-foreground">
-                  <RefreshCw className="h-10 w-10 mx-auto mb-3 opacity-40 text-secondary" />
-                  <p className="font-semibold text-foreground">No active loans</p>
-                  <p className="text-sm mt-1">There are no active checkouts eligible for renewal.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-
 
       </div>
 

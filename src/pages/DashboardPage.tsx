@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { BookOpen, Users, BookCopy, AlertTriangle, TrendingUp, Clock, Search, Loader2, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile, fetchProgrammeBookRecommendations, fetchLibraryMonthlyActivity } from "@/lib/supabaseService";
+import { fetchIssuedBooks, fetchProfiles, fetchBookRecordCount, fetchTotalBookCopiesCount, fetchAvailableBookRecordCount, fetchAvailableBooks, fetchBooksForDashboard, checkAndUpdateOverdueBooks, issueBook, fetchProfile, fetchProgrammeBookRecommendations, fetchLibraryMonthlyActivity } from "@/lib/supabaseService";
 import { supabase } from "@/lib/supabase";
 import { getSchoolDisplayName } from "@/lib/academicProgrammes";
 import type { Book, IssuedBook, ProgrammeBook, UserProfile } from "@/lib/types";
@@ -138,7 +138,7 @@ export default function DashboardPage() {
         usersResult,
         programmeRecommendationsResult,
       ] = await Promise.allSettled([
-        fetchBookRecordCount(),
+        fetchTotalBookCopiesCount(),
         fetchAvailableBookRecordCount(),
         fetchAvailableBooks(isStudent ? 3 : 4),
         fetchIssuedBooks(),
@@ -302,17 +302,25 @@ export default function DashboardPage() {
     );
   }
 
-  const totalBooks = bookRecordCount;
-  const available = availableBookRecordCount;
   const activeIssuedBooks = issuedBooks.filter(i => i.status === "issued" || i.status === "overdue");
-  const issued = issuedBooks.length;
+  const issued = issuedBooks.length; // Enforce user logic: total issued books count
   const overdue = activeIssuedBooks.filter(i => i.status === "overdue").length;
+
+  // Calculate exact total copies including all duplicates from the fully loaded books list
+  const exactTotalCopies = books.reduce((sum, b) => sum + getBookTotalCount(b), 0);
+  
+  // Use backend row count as a fallback ONLY while the full books list is still loading
+  const totalBooks = (booksLoading || books.length === 0) ? bookRecordCount : exactTotalCopies;
+
+  // Enforce the exact logic: available = total - issued
+  const available = Math.max(0, totalBooks - issued);
+
   const availableBookRecords = books.filter((b) => getEffectiveAvailableCount(b) > 0);
   const highlightedBooks = previewBooks.length > 0 ? previewBooks : availableBookRecords.slice(0, isStudent ? 3 : 4);
 
   const staffStats = [
-    { label: "Total Book Records", value: totalBooks, icon: BookOpen, color: "text-secondary" },
-    { label: "Available Records", value: available, icon: TrendingUp, color: "text-accent" },
+    { label: "Total Collection", value: totalBooks, icon: BookOpen, color: "text-secondary" },
+    { label: "Available Collection", value: available, icon: TrendingUp, color: "text-accent" },
     { label: "Books Issued", value: issued, icon: BookCopy, color: "text-secondary" },
     { label: "Overdue Books", value: overdue, icon: AlertTriangle, color: "text-destructive" },
   ];
@@ -440,13 +448,30 @@ export default function DashboardPage() {
               <p className="text-3xl font-semibold text-foreground" style={{ fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
               <p className="text-sm text-gray-600 mt-1">{s.label}</p>
             </div>
-            
+          </div>
+        ))}
+      </div>
+
+      {/* Expanded Details - Moved outside the grid to prevent layout breaking */}
+      {expandedCard && (
+        <div className="mb-8 bg-card rounded-xl p-6 shadow-card border border-border relative animate-in fade-in slide-in-from-top-4 duration-300">
+          <button 
+            onClick={() => setExpandedCard(null)}
+            className="absolute top-4 right-4 text-muted-foreground hover:text-foreground bg-muted hover:bg-secondary/10 p-1.5 rounded-full transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          
+          <div className="mb-4 pb-3 border-b border-border">
+            <h2 className="text-xl font-bold text-foreground">{expandedCard} Details</h2>
+          </div>
+          
+          <div className="space-y-4">
             {/* Expanded Details */}
-            {expandedCard === s.label && (
-              <div className="mt-3 bg-card rounded-xl p-5 shadow-card border border-border">
+            <div className="w-full">
                 {isStudent ? (
                   <>
-                    {s.label === "Books Issued" && (
+                    {expandedCard === "Books Issued" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Issued Books ({myActive.length})</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -463,7 +488,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                    {s.label === "Upcoming Due" && (
+                    {expandedCard === "Upcoming Due" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Books Due Soon ({myUpcomingDue})</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -486,7 +511,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                    {s.label === "Overdue" && (
+                    {expandedCard === "Overdue" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Overdue Books ({myOverdue})</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -506,7 +531,7 @@ export default function DashboardPage() {
                   </>
                 ) : (
                   <>
-                    {s.label === "Total Book Records" && (
+                      {expandedCard === "Total Collection" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Books by Category</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -531,7 +556,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                    {s.label === "Available Records" && (
+                      {expandedCard === "Available Collection" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Available Books Breakdown</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -550,7 +575,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                    {s.label === "Books Issued" && (
+                    {expandedCard === "Books Issued" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Issued Book Records ({issued})</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -569,7 +594,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                    {s.label === "Overdue Books" && (
+                    {expandedCard === "Overdue Books" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Overdue Books ({overdue})</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -586,7 +611,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                    {s.label === "Total Users" && (
+                    {expandedCard === "Total Users" && (
                       <div>
                         <h3 className="font-semibold text-foreground mb-3">Registered Users ({users.length})</h3>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -606,10 +631,11 @@ export default function DashboardPage() {
                   </>
                 )}
               </div>
-            )}
+
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
 
       {/* Quick Issue Section - Admin only */}
       {!isStudent && (
